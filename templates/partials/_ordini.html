@@ -1,0 +1,32 @@
+{% for ordine in ordini %}
+<div class="order-card {% if completati %}completed{% endif %}" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
+    <h2 class="order-title">{{ ordine['nome_cliente'] }}</h2>
+    <div class="order-info">
+        <div>Tavolo: {{ ordine['numero_tavolo'] }}</div>
+        <div>{{ ordine['data_ordine'][11:16] }}</div>
+        <div>Persone: {{ ordine['numero_persone'] }}</div>
+    </div>
+    <div class="order-divider"></div>
+
+    <div class="order-items-container">
+        {% for prodotto in ordine['prodotti'] %}
+        <div class="order-item">
+            <span>{{ prodotto['nome'] }}</span>
+            <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not completati %}
+    <div class="order-status">
+        <button class="order-btn"
+                data-status="{{ ordine['stato'] }}"
+                data-id="{{ ordine['id'] }}"
+                data-categoria="{{ category }}"
+                onclick="cambiaStato(this)">
+            {{ ordine['stato'] }}
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}

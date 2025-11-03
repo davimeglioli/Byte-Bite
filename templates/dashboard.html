@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+        <title>Dashboard</title>
+    </head>
+    <header>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            <h2>Dashboard {{category}}</h2>
+        </div>
+        <p>Sagra Natività della Beata Vergine Maria</p>
+    </header>
+
+    <body class="dashboard">
+        <div class="orders-container">
+
+            {% for ordine in ordini_non_completati %}
+                <div class="order-card" data-status="{{ ordine['stato'] }}" data-id="{{ordine['id']}}">
+                    <h2 class="order-title">{{ordine['nome_cliente']}}</h2>
+
+                    <div class="order-info">
+                    <div>Tavolo: {{ordine['numero_tavolo']}}</div>
+                    <div>{{ordine['data_ordine'][11:16]}}</div> <!-- Mostra solo l'ora -->
+                    <div>Persone: {{ordine['numero_persone']}}</div>
+                    </div>
+
+                    <div class="order-divider"></div>
+
+                    <div class="order-items-container">
+                        {% for prodotto in ordine['prodotti'] %}
+                        <div class="order-item">
+                            <span>{{ prodotto['nome'] }}</span>
+                            <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+
+                    <div class="order-status">
+                        <button class="order-btn" data-status="{{ ordine['stato']}}" data-id="{{ ordine['id'] }}" data-categoria="{{ category }}" onclick="cambiaStato(this)">
+                            {{ordine['stato']}}
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <hr class="dashboard-divider" />
+        <h2 class="completed-title">Ordini Completati</h2>
+        <div class="orders-container">
+            {% for ordine in ordini_completati %}  
+            <div class="order-card completed">
+                <h2 class="order-title">{{ordine['nome_cliente']}}</h2>
+                <div class="order-info">
+                    <div>Tavolo: {{ordine['numero_tavolo']}}</div>
+                    <div>{{ordine['data_ordine'][11:16]}}</div>
+                    <div>Persone: {{ordine['numero_persone']}}</div>
+                </div>
+                <div class="order-divider"></div>
+                <div class="order-items-container">
+                    {% for prodotto in ordine['prodotti'] %}
+                    <div class="order-item">
+                        <span>{{ prodotto['nome'] }}</span>
+                        <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+        <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    </body>
+</html>
