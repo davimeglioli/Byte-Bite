@@ -28,6 +28,7 @@ header {
     position: sticky;
     top: 0;
     z-index: 1000;
+
 }
 
 .logo {
@@ -427,6 +428,7 @@ html, body, * {
     padding: 0 1rem 2rem;
     box-sizing: border-box;
     align-items: stretch;
+    margin-top: 20px;
 }
 
 .order-card {
@@ -595,7 +597,7 @@ html, body, * {
     font-size: 18px;
     font-weight: 700;
     color: #808080;
-    margin: 10px 0;
+    margin: 10px 0 20px;
 }
 
 .order-card.completed {
