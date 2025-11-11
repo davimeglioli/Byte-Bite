@@ -48,11 +48,11 @@ def get_db():
     return conn
 
 @app.route('/')
-def home():
+def index():
     return render_template('index.html')
 
 @app.route('/cassa/')
-def index():
+def cassa():
     conn = get_db()
     conn.row_factory = sq.Row
     cur = conn.cursor()
@@ -324,6 +324,10 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
 
     safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
 
+@app.route('/amministrazione/')
+def amministrazione():
+    return render_template('amministrazione.html')
+
 if __name__ == '__main__':
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -336,4 +340,4 @@ if __name__ == '__main__':
         s.close()
     print(f'Avvio server — apri: http://{ip}:5000/')
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-
+    

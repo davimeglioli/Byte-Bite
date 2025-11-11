@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <title>Amministrazione</title>
+    </head>
+    <header>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            <h2>Amministrazione</h2>
+        </div>
+        <p>Sagra Natività della Beata Vergine Maria</p>
+    </header>
+
+    <body class="amministrazione">
+        <section class="recap">
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Ordini Totali</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Ordini Completati</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Guadagno Totale</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Valore Medio Ordine</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Totale Contanti</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+
+            <div class="recap-card">
+                <div class="label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                        <circle cx="6" cy="6" r="6"/>
+                    </svg>
+                    <span class="label-text">Totale Carta</span>
+                </div>
+                <div class="value">0</div>
+            </div>
+        </section>
+
+        <section class="grafico-card">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6"/>
+            </svg>
+            <h3>Andamento Vendite</h3>
+            <canvas id="grafico"></canvas>
+        </section>
+
+        <script>
+            // Dati di esempio (statici)
+            const data = {
+            etichette: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio"],
+            valori: [12, 19, 7, 15, 22]
+            };
+
+            // Creazione del grafico
+            const ctx = document.getElementById('grafico').getContext('2d');
+            new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: data.etichette,
+                datasets: [{
+                label: 'Vendite',
+                data: data.valori,
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,       // si adatta automaticamente al contenitore
+                maintainAspectRatio: false,
+            }
+            });
+        </script>
+    </body>
+</html>
