@@ -326,7 +326,160 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
 
 @app.route('/amministrazione/')
 def amministrazione():
-    return render_template('amministrazione.html')
+    # legge statistiche totali
+    totali = query_db("SELECT * FROM statistiche_totali WHERE id = 1", one=True)
+
+    # se non esistono statistiche le genera
+    if not totali:
+        genera_statistiche()
+        totali = query_db("SELECT * FROM statistiche_totali WHERE id = 1", one=True)
+
+    totali = dict(totali) if totali else None
+
+    # legge statistiche categorie
+    stats_categorie = query_db("""
+        SELECT categoria_dashboard, totale
+        FROM statistiche_categorie
+    """)
+    categorie = [dict(r) for r in stats_categorie] if stats_categorie else []
+
+    # legge statistiche ore
+    stats_ore = query_db("""
+        SELECT ora, totale
+        FROM statistiche_ore
+        ORDER BY ora ASC
+    """)
+    ore = [dict(r) for r in stats_ore] if stats_ore else []
+
+    # legge top 10 prodotti dai 'prodotti.venduti'
+    top10_rows = query_db("""
+        SELECT nome, venduti
+        FROM prodotti
+        ORDER BY venduti DESC
+        LIMIT 10
+    """)
+    top10 = [dict(r) for r in top10_rows] if top10_rows else []
+
+    return render_template(
+        "amministrazione.html",
+        totali=totali,
+        categorie=categorie,
+        ore=ore,
+        top10=top10
+    )
+
+@app.route('/genera_statistiche/')
+def genera_statistiche():
+    conn = get_db()
+    cur = conn.cursor()
+
+    # carica tutti gli ordini
+    ordini = query_db("""
+        SELECT id, metodo_pagamento, data_ordine, completato
+        FROM ordini
+    """)
+
+    # totale ordini e completati
+    ordini_totali = len(ordini)
+    ordini_completati = sum(1 for o in ordini if o["completato"] == 1)
+
+    # reset statistiche totali
+    query_db("DELETE FROM statistiche_totali", commit=True)
+
+    # reset statistiche categorie
+    query_db("DELETE FROM statistiche_categorie", commit=True)
+
+    # reset statistiche ore
+    query_db("DELETE FROM statistiche_ore", commit=True)
+
+    # categorie dashboard fisse
+    categorie = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
+
+    # inserisce le categorie
+    for cat in categorie:
+        query_db("""
+            INSERT INTO statistiche_categorie (categoria_dashboard, totale)
+            VALUES (?, 0)
+        """, (cat,), commit=True)
+
+    # inizializza ore da 0 a 23
+    for h in range(24):
+        query_db("""
+            INSERT INTO statistiche_ore (ora, totale)
+            VALUES (?, 0)
+        """, (h,), commit=True)
+
+    # inizializza totali incasso
+    totale_incasso = 0
+    totale_contanti = 0
+    totale_carta = 0
+
+    # ciclo su tutti gli ordini
+    for ordine in ordini:
+        ordine_id = ordine["id"]
+        metodo = ordine["metodo_pagamento"]
+
+        # calcola incasso dell'ordine
+        incasso_ordine = query_db("""
+            SELECT SUM(p.prezzo * op.quantita) AS totale
+            FROM ordini_prodotti op
+            JOIN prodotti p ON p.id = op.prodotto_id
+            WHERE op.ordine_id = ?
+        """, (ordine_id,), one=True)["totale"] or 0
+
+        # somma incasso totale
+        totale_incasso += incasso_ordine
+
+        # aggiorna incassi contanti/carta
+        if metodo == "Contanti":
+            totale_contanti += incasso_ordine
+        else:
+            totale_carta += incasso_ordine
+
+        # calcola ora dell'ordine
+        ora = query_db("""
+            SELECT CAST(strftime('%H', data_ordine) AS INT) AS h
+            FROM ordini WHERE id = ?
+        """, (ordine_id,), one=True)["h"]
+
+        # aggiorna statistiche per ora
+        query_db("""
+            UPDATE statistiche_ore
+            SET totale = totale + 1
+            WHERE ora = ?
+        """, (ora,), commit=True)
+
+        # calcola categorie dashboard coinvolte
+        righe_cat = query_db("""
+            SELECT p.categoria_dashboard, SUM(op.quantita) AS qta
+            FROM ordini_prodotti op
+            JOIN prodotti p ON p.id = op.prodotto_id
+            WHERE op.ordine_id = ?
+            GROUP BY p.categoria_dashboard
+        """, (ordine_id,))
+
+        # aggiorna statistiche categorie
+        for r in righe_cat:
+            query_db("""
+                UPDATE statistiche_categorie
+                SET totale = totale + ?
+                WHERE categoria_dashboard = ?
+            """, (r["qta"], r["categoria_dashboard"]), commit=True)
+
+    # inserisce statistiche totali
+    query_db("""
+        INSERT INTO statistiche_totali
+        (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
+        VALUES (1, ?, ?, ?, ?, ?)
+    """, (
+        ordini_totali,
+        ordini_completati,
+        totale_incasso,
+        totale_contanti,
+        totale_carta
+    ), commit=True)
+
+    return redirect('/amministrazione/')
 
 if __name__ == '__main__':
     import socket

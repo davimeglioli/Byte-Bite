@@ -28,27 +28,23 @@ CREATE TABLE IF NOT EXISTS ordini_prodotti (
     PRIMARY KEY (ordine_id, prodotto_id)
 );
 
-/* Tabelle per statistiche */
-CREATE TABLE stats_totali (
+/* tabelle per statistiche */
+CREATE TABLE statistiche_totali (
     id INT PRIMARY KEY,
     ordini_totali INT NOT NULL DEFAULT 0,
     ordini_completati INT NOT NULL DEFAULT 0,
-    totale_incasso DECIMAL NOT NULL DEFAULT 0,
-    totale_contanti DECIMAL NOT NULL DEFAULT 0,
-    totale_carta DECIMAL NOT NULL DEFAULT 0
+    totale_incasso REAL NOT NULL DEFAULT 0,
+    totale_contanti REAL NOT NULL DEFAULT 0,
+    totale_carta REAL NOT NULL DEFAULT 0
 );
 
-CREATE TABLE stats_categorie (
+CREATE TABLE statistiche_categorie (
     categoria_dashboard TEXT PRIMARY KEY,
     totale INT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE stats_ore (
+CREATE TABLE statistiche_ore (
     ora TINYINT PRIMARY KEY,
     totale INT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE stats_prodotti (
-    prodotto_id INT PRIMARY KEY,
-    totale_venduto INT NOT NULL DEFAULT 0
-);

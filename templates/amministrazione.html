@@ -55,7 +55,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Totale Carta</span>
+                    <span class="label-text">Guadagno Carta</span>
                 </div>
                 <div class="value">0</div>
             </div>
@@ -65,7 +65,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Totale Contanti</span>
+                    <span class="label-text">Guadagno Contanti</span>
                 </div>
                 <div class="value">0</div>
             </div>
@@ -74,26 +74,27 @@
         <section class="grafici">
 
             <div class="grafico-card">
-                <h3>Andamento Vendite</h3>
+                <h3>Ordini per categoria</h3>
                 <canvas id="grafico1"></canvas>
             </div>
 
             <div class="grafico-card">
-                <h3>Grafico 2</h3>
+                <h3>Andamento ordini per ora</h3>
                 <canvas id="grafico2"></canvas>
             </div>
 
             <div class="grafico-card">
-                <h3>Grafico 3</h3>
+                <h3>Stato ordini</h3>
                 <canvas id="grafico3"></canvas>
             </div>
 
             <div class="grafico-card">
-                <h3>Grafico 4</h3>
+                <h3>Prodotti più venduti</h3>
                 <canvas id="grafico4"></canvas>
             </div>
 
         </section>
+
 
         <script src="{{ url_for('static', filename='js/amministrazione.js') }}"></script>
     </body>
