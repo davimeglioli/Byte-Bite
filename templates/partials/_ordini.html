@@ -2,9 +2,9 @@
 <div class="order-card {% if completati %}completed{% endif %}" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
     <h2 class="order-title">{{ ordine['nome_cliente'] }}</h2>
     <div class="order-info">
-        <div>Tavolo: {{ ordine['numero_tavolo'] }}</div>
+        <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
         <div>{{ ordine['data_ordine'][11:16] }}</div>
-        <div>Persone: {{ ordine['numero_persone'] }}</div>
+        <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
     </div>
     <div class="order-divider"></div>
 

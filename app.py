@@ -17,7 +17,7 @@ socketio = SocketIO(
     cors_allowed_origins="*",
     ping_timeout=60,      # quanto tempo il server aspetta un PONG
     ping_interval=25,     # ogni quanto manda un PING
-    async_mode="eventlet" # esplicito, per chiarezza
+    
 )
 
 def login_required(f):
@@ -190,6 +190,7 @@ def aggiungi_ordine():
     # Avvisa le dashboard in tempo reale
     for cat in categorie_dashboard:
         safe_emit('aggiorna_dashboard', {'categoria': cat}, room=cat)
+    socketio.start_background_task(ricalcola_statistiche)
 
     return redirect('/cassa/', code=303)
 
@@ -253,8 +254,20 @@ def cambia_stato():
         );
     """, (nuovo_stato, ordine_id, categoria), commit=True)
 
+    residui = query_db(
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        (ordine_id,),
+        one=True
+    )["c"]
+    query_db(
+        "UPDATE ordini SET completato = ? WHERE id = ?",
+        (1 if residui == 0 else 0, ordine_id),
+        commit=True
+    )
+
     # Avvisa subito la dashboard
     safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
+    socketio.start_background_task(ricalcola_statistiche)
 
     if nuovo_stato == "Pronto":
     # Invalida qualsiasi vecchio timer
@@ -386,59 +399,116 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
         );
     """, (ordine_id, categoria), commit=True)
 
+    residui = query_db(
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        (ordine_id,),
+        one=True
+    )["c"]
+    query_db(
+        "UPDATE ordini SET completato = ? WHERE id = ?",
+        (1 if residui == 0 else 0, ordine_id),
+        commit=True
+    )
+
     # Rimuovi il timer dalla lista
     timers_attivi.pop(timer_key, None)
 
     safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
+    socketio.start_background_task(ricalcola_statistiche)
+
+@app.route('/api/statistiche/')
+@login_required
+@require_permission("AMMINISTRAZIONE")
+def api_statistiche():
+    ordini_totali = query_db("SELECT COUNT(*) AS c FROM ordini", one=True)["c"]
+    ordini_completati = query_db("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", one=True)["c"]
+
+    totale_incasso_row = query_db(
+        """
+        SELECT SUM(p.prezzo * op.quantita) AS totale
+        FROM ordini_prodotti op
+        JOIN prodotti p ON p.id = op.prodotto_id
+        """,
+        one=True
+    )
+    totale_incasso = totale_incasso_row["totale"] or 0
+
+    totale_contanti_row = query_db(
+        """
+        SELECT SUM(p.prezzo * op.quantita) AS totale
+        FROM ordini_prodotti op
+        JOIN prodotti p ON p.id = op.prodotto_id
+        JOIN ordini o ON o.id = op.ordine_id
+        WHERE o.metodo_pagamento = 'Contanti'
+        """,
+        one=True
+    )
+    totale_contanti = (totale_contanti_row["totale"] or 0)
+
+    totale_carta_row = query_db(
+        """
+        SELECT SUM(p.prezzo * op.quantita) AS totale
+        FROM ordini_prodotti op
+        JOIN prodotti p ON p.id = op.prodotto_id
+        JOIN ordini o ON o.id = op.ordine_id
+        WHERE o.metodo_pagamento = 'Carta'
+        """,
+        one=True
+    )
+    totale_carta = (totale_carta_row["totale"] or 0)
+
+    ore_rows = query_db(
+        """
+        SELECT CAST(strftime('%H', data_ordine) AS INT) AS ora, COUNT(*) AS totale
+        FROM ordini
+        GROUP BY ora
+        ORDER BY ora ASC
+        """
+    )
+    ore = [dict(r) for r in ore_rows] if ore_rows else []
+
+    cat_rows = query_db(
+        """
+        SELECT p.categoria_dashboard, SUM(op.quantita) AS totale
+        FROM ordini_prodotti op
+        JOIN prodotti p ON p.id = op.prodotto_id
+        GROUP BY p.categoria_dashboard
+        """
+    )
+    categorie = [dict(r) for r in cat_rows] if cat_rows else []
+
+    top10_rows = query_db(
+        """
+        SELECT nome, venduti
+        FROM prodotti
+        ORDER BY venduti DESC
+        LIMIT 10
+        """
+    )
+    top10 = [dict(r) for r in top10_rows] if top10_rows else []
+
+    return jsonify({
+        "totali": {
+            "ordini_totali": ordini_totali,
+            "ordini_completati": ordini_completati,
+            "totale_incasso": totale_incasso,
+            "totale_contanti": totale_contanti,
+            "totale_carta": totale_carta
+        },
+        "categorie": categorie,
+        "ore": ore,
+        "top10": top10
+    })
 
 @app.route('/amministrazione/')
 @login_required
 @require_permission("AMMINISTRAZIONE")
 def amministrazione():
-    # legge statistiche totali
-    totali = query_db("SELECT * FROM statistiche_totali WHERE id = 1", one=True)
-
-    # se non esistono statistiche le genera
-    if not totali:
-        genera_statistiche()
-        totali = query_db("SELECT * FROM statistiche_totali WHERE id = 1", one=True)
-
-    totali = dict(totali) if totali else None
-
-    # legge statistiche categorie
-    stats_categorie = query_db("""
-        SELECT categoria_dashboard, totale
-        FROM statistiche_categorie
-    """)
-    categorie = [dict(r) for r in stats_categorie] if stats_categorie else []
-
-    # legge statistiche ore
-    stats_ore = query_db("""
-        SELECT ora, totale
-        FROM statistiche_ore
-        ORDER BY ora ASC
-    """)
-    ore = [dict(r) for r in stats_ore] if stats_ore else []
-
-    # legge top 10 prodotti dai 'prodotti.venduti'
-    top10_rows = query_db("""
-        SELECT nome, venduti
-        FROM prodotti
-        ORDER BY venduti DESC
-        LIMIT 10
-    """)
-    top10 = [dict(r) for r in top10_rows] if top10_rows else []
-
     return render_template(
-        "amministrazione.html",
-        totali=totali,
-        categorie=categorie,
-        ore=ore,
-        top10=top10
+        "amministrazione.html"
     )
 
-@app.route('/genera_statistiche/')
-def genera_statistiche():
+def ricalcola_statistiche():
     conn = get_db()
     cur = conn.cursor()
 
@@ -548,6 +618,21 @@ def genera_statistiche():
         totale_carta
     ), commit=True)
 
+    return None
+
+@app.route('/genera_statistiche/')
+def genera_statistiche():
+    ricalcola_statistiche()
+    return redirect('/amministrazione/')
+
+@app.route('/debug/reset_dati/')
+@login_required
+@require_permission("AMMINISTRAZIONE")
+def debug_reset_dati():
+    query_db("DELETE FROM ordini_prodotti", commit=True)
+    query_db("DELETE FROM ordini", commit=True)
+    query_db("UPDATE prodotti SET disponibile = 1, quantita = 100, venduti = 0", commit=True)
+    ricalcola_statistiche()
     return redirect('/amministrazione/')
 
 @app.route('/login/', methods=['GET', 'POST'])
