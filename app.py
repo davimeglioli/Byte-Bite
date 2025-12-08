@@ -1,12 +1,17 @@
-from flask import Flask, json, jsonify, redirect, render_template, request
+from flask import Flask, json, jsonify, redirect, render_template, request, session, abort
 import sqlite3 as sq
 import socket
+import bcrypt
+import secrets
 from flask_socketio import SocketIO, join_room
 import uuid
+from functools import wraps
 
 timers_attivi = {}
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
+
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -14,6 +19,61 @@ socketio = SocketIO(
     ping_interval=25,     # ogni quanto manda un PING
     async_mode="eventlet" # esplicito, per chiarezza
 )
+
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login/")
+        return f(*args, **kwargs)
+    return wrapper
+
+def get_logged_user():
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+
+    return query_db(
+        "SELECT id, username, is_admin, attivo FROM utenti WHERE id = ?",
+        (user_id,),
+        one=True
+    )
+
+def require_permission(pagina):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+
+            # Utente NON loggato
+            if "user_id" not in session:
+                return redirect("/login/")
+
+            user = get_logged_user()
+
+            # Utente disattivo → espellilo
+            if not user or user["attivo"] != 1:
+                session.clear()
+                return redirect("/login/")
+
+            # Admin → ha accesso totale
+            if user["is_admin"] == 1:
+                return f(*args, **kwargs)
+
+            # Controlla se ha il permesso richiesto
+            perm = query_db("""
+                SELECT 1 FROM permessi_pagine
+                WHERE utente_id = ? AND pagina = ?
+            """, (user["id"], pagina), one=True)
+
+            if perm:
+                return f(*args, **kwargs)
+
+            # Altrimenti → accesso negato
+            abort(403)
+
+        return wrapper
+    return decorator
+
 
 # chiude in automatico la connessione con il db in caso di errore
 def query_db(query, args=(), one=False, commit=False):
@@ -52,6 +112,8 @@ def index():
     return render_template('index.html')
 
 @app.route('/cassa/')
+@login_required
+@require_permission("CASSA")
 def cassa():
     conn = get_db()
     conn.row_factory = sq.Row
@@ -132,7 +194,12 @@ def aggiungi_ordine():
     return redirect('/cassa/', code=303)
 
 @app.route('/dashboard/<category>/')
+@login_required
 def dashboard(category):
+    permesso = "DASHBOARD_" + category.upper()
+
+    require_permission(permesso)(lambda: None)()
+
     ordini_non_completati, ordini_completati = get_ordini_per_categoria(category)
     return render_template(
         'dashboard.html',
@@ -325,6 +392,8 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
     safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
 
 @app.route('/amministrazione/')
+@login_required
+@require_permission("AMMINISTRAZIONE")
 def amministrazione():
     # legge statistiche totali
     totali = query_db("SELECT * FROM statistiche_totali WHERE id = 1", one=True)
@@ -480,6 +549,36 @@ def genera_statistiche():
     ), commit=True)
 
     return redirect('/amministrazione/')
+
+@app.route('/login/', methods=['GET', 'POST'])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password").encode()
+
+        user = query_db("""
+            SELECT id, username, password_hash, is_admin, attivo
+            FROM utenti WHERE username = ?
+        """, (username,), one=True)
+
+        if not user:
+            return render_template("login.html", error="Username o password errata")
+
+        if user["attivo"] != 1:
+            return render_template("login.html", error="Account disattivato")
+
+        # verifica password
+        if not bcrypt.checkpw(password, user["password_hash"].encode()):
+            return render_template("login.html", error="Username o password errata")
+
+        # login riuscito
+        session["user_id"] = user["id"]
+        session["username"] = user["username"]
+
+        return redirect("/")
+
+    return render_template("login.html")
+
 
 if __name__ == '__main__':
     import socket

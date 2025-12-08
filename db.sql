@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS ordini_prodotti (
 );
 
 /* tabelle per statistiche */
-CREATE TABLE statistiche_totali (
+CREATE TABLE IF NOT EXISTS statistiche_totali (
     id INT PRIMARY KEY,
     ordini_totali INT NOT NULL DEFAULT 0,
     ordini_completati INT NOT NULL DEFAULT 0,
@@ -38,13 +38,28 @@ CREATE TABLE statistiche_totali (
     totale_carta REAL NOT NULL DEFAULT 0
 );
 
-CREATE TABLE statistiche_categorie (
+CREATE TABLE IF NOT EXISTS statistiche_categorie (
     categoria_dashboard TEXT PRIMARY KEY,
     totale INT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE statistiche_ore (
+CREATE TABLE IF NOT EXISTS statistiche_ore (
     ora TINYINT PRIMARY KEY,
     totale INT NOT NULL DEFAULT 0
 );
 
+
+/* tabelle per utenti */
+CREATE TABLE IF NOT EXISTS utenti (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  is_admin INTEGER DEFAULT 0,
+  attivo INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS permessi_pagine (
+  utente_id INTEGER NOT NULL,
+  pagina TEXT NOT NULL,
+  PRIMARY KEY (utente_id, pagina)
+);

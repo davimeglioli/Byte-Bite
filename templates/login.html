@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+        <title>Login</title>
+    </head>
+    <body class="login-page">
+
+        <header>
+            <div class="logo">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+                <h2>Accesso</h2>
+            </div>
+            <p>Sagra Natività della Beata Vergine Maria</p>
+        </header>
+
+        <div class="login-container">
+            <div class="login-card">
+
+                <h2 class="login-title">Accedi</h2>
+
+                {% if error %}
+                    <p class="login-error">{{ error }}</p>
+                {% endif %}
+
+                <form method="POST" class="login-form">
+
+                    <label for="username">Username</label>
+                    <input type="text" name="username" class="input-login" required>
+
+                    <label for="password">Password</label>
+                    <input type="password" name="password" class="input-login" required>
+
+                    <button type="submit" class="login-btn">Entra</button>
+                </form>
+
+            </div>
+        </div>
+    </body>
+</html>
