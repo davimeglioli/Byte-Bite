@@ -1,4 +1,4 @@
-from flask import Flask, json, jsonify, redirect, render_template, request, session, abort
+from flask import Flask, json, jsonify, redirect, render_template, request, session, abort, url_for
 import sqlite3 as sq
 import socket
 import bcrypt
@@ -711,6 +711,6 @@ if __name__ == '__main__':
         ip = '127.0.0.1'
     finally:
         s.close()
-    print(f'Avvio server — apri: http://{ip}:5001/')
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    print(f'Avvio server — apri: http://{ip}:8000/')
+    socketio.run(app, host='0.0.0.0', port=8000, debug=True)
     
