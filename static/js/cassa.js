@@ -3,16 +3,16 @@
 document.addEventListener("DOMContentLoaded", () => {
 
     // Gestione tabs categorie
-    const tabs = document.querySelectorAll(".tab");
-    const productSections = document.querySelectorAll(".products");
+    const tabs = document.querySelectorAll(".linguetta");
+    const productSections = document.querySelectorAll(".prodotti");
 
     function mostraCategoria(nomeCategoria) {
-        productSections.forEach(sezione => sezione.classList.remove("active"));
-        const sezioneDaMostrare = document.querySelector(`.products[data-categoria="${nomeCategoria}"]`);
-        if (sezioneDaMostrare) sezioneDaMostrare.classList.add("active");
+        productSections.forEach(sezione => sezione.classList.remove("attivi"));
+        const sezioneDaMostrare = document.querySelector(`.prodotti[data-categoria="${nomeCategoria}"]`);
+        if (sezioneDaMostrare) sezioneDaMostrare.classList.add("attivi");
 
         tabs.forEach(tab => {
-            tab.classList.toggle("active", tab.dataset.categoria === nomeCategoria);
+            tab.classList.toggle("attiva", tab.dataset.categoria === nomeCategoria);
         });
     }
 
@@ -25,8 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Gestione carrello e riepilogo
     const carrello = [];
-    const riepilogo = document.querySelector(".order-summary");
-    const totaleElemento = document.querySelector(".total h2:last-child");
+    const riepilogo = document.querySelector(".contenitore-lista-ordine");
+    const totaleElemento = document.querySelector(".totale-carrello h2:last-child");
     const campoProdotti = document.getElementById("prodotti-json");
 
     function aggiornaRiepilogo() {
@@ -38,14 +38,14 @@ document.addEventListener("DOMContentLoaded", () => {
             totale += subtotale;
 
             const div = document.createElement("div");
-            div.classList.add("item");
+            div.classList.add("articolo-carrello");
             div.innerHTML = `
                 <h5>${item.nome}</h5>
-                <div class="item-controls">
-                    <button class="btn-decrease" data-id="${item.id}">-</button>
+                <div class="controlli-articolo">
+                    <button class="tasto-diminuisci" data-id="${item.id}">-</button>
                     <p>${item.quantita}</p>
-                    <button class="btn-increase" data-id="${item.id}">+</button>
-                    <button class="btn-remove" data-id="${item.id}">×</button>
+                    <button class="tasto-aumenta" data-id="${item.id}">+</button>
+                    <button class="tasto-rimuovi" data-id="${item.id}">×</button>
                     <p>€${subtotale.toFixed(2)}</p>
                 </div>
             `;
@@ -78,8 +78,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.addEventListener("click", (e) => {
         // Gestione pulsanti nelle card
-        if (e.target.classList.contains("btn-plus")) {
-            const prodottoDiv = e.target.closest(".product");
+        if (e.target.classList.contains("tasto-piu")) {
+            const prodottoDiv = e.target.closest(".prodotto");
             const id = parseInt(prodottoDiv.dataset.id);
             const nome = prodottoDiv.querySelector("h4").textContent;
             const prezzo = parseFloat(prodottoDiv.dataset.prezzo);
@@ -87,17 +87,17 @@ document.addEventListener("DOMContentLoaded", () => {
             aggiungiProdotto(id, nome, prezzo, maxDisponibile);
         }
 
-        if (e.target.classList.contains("btn-minus")) {
-            const prodottoDiv = e.target.closest(".product");
+        if (e.target.classList.contains("tasto-meno")) {
+            const prodottoDiv = e.target.closest(".prodotto");
             const id = parseInt(prodottoDiv.dataset.id);
             rimuoviProdotto(id);
         }
 
         // Gestione pulsanti nel riepilogo
-        if (e.target.classList.contains("btn-increase")) {
+        if (e.target.classList.contains("tasto-aumenta")) {
             const id = parseInt(e.target.dataset.id);
             const item = carrello.find(p => p.id === id);
-            const prodottoDiv = document.querySelector(`.product[data-id="${id}"]`);
+            const prodottoDiv = document.querySelector(`.prodotto[data-id="${id}"]`);
             const maxDisponibile = prodottoDiv ? parseInt(prodottoDiv.dataset.quantita) : Infinity;
             if (item && item.quantita < maxDisponibile) {
                 item.quantita++;
@@ -105,12 +105,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        if (e.target.classList.contains("btn-decrease")) {
+        if (e.target.classList.contains("tasto-diminuisci")) {
             const id = parseInt(e.target.dataset.id);
             rimuoviProdotto(id);
         }
 
-        if (e.target.classList.contains("btn-remove")) {
+        if (e.target.classList.contains("tasto-rimuovi")) {
             const id = parseInt(e.target.dataset.id);
             const index = carrello.findIndex(p => p.id === id);
             if (index !== -1) carrello.splice(index, 1);
@@ -119,27 +119,27 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function aggiornaQuantitaProdotti() {
-        document.querySelectorAll(".product").forEach(prodottoDiv => {
+        document.querySelectorAll(".prodotto").forEach(prodottoDiv => {
             const id = parseInt(prodottoDiv.dataset.id);
             const prodottoCarrello = carrello.find(p => p.id === id);
-            const quantityElement = prodottoDiv.querySelector(".quantity p");
-            const btnPlus = prodottoDiv.querySelector(".btn-plus");
-            const btnMinus = prodottoDiv.querySelector(".btn-minus");
+            const quantityElement = prodottoDiv.querySelector(".selettore-quantita p");
+            const btnPlus = prodottoDiv.querySelector(".tasto-piu");
+            const btnMinus = prodottoDiv.querySelector(".tasto-meno");
             const maxDisponibile = parseInt(prodottoDiv.dataset.quantita);
 
             if (prodottoCarrello) {
                 quantityElement.textContent = prodottoCarrello.quantita;
-                prodottoDiv.classList.add("product-selected");
+                prodottoDiv.classList.add("prodotto-selezionato");
                 btnPlus.disabled = prodottoCarrello.quantita >= maxDisponibile;
                 btnMinus.disabled = prodottoCarrello.quantita <= 0;
-                const riepilogoPlus  = document.querySelector(`.btn-increase[data-id="${id}"]`);
-                const riepilogoMinus = document.querySelector(`.btn-decrease[data-id="${id}"]`);
+                const riepilogoPlus  = document.querySelector(`.tasto-aumenta[data-id="${id}"]`);
+                const riepilogoMinus = document.querySelector(`.tasto-diminuisci[data-id="${id}"]`);
 
                 if (riepilogoPlus)  riepilogoPlus.disabled  = prodottoCarrello.quantita >= maxDisponibile;
                 if (riepilogoMinus) riepilogoMinus.disabled = prodottoCarrello.quantita <= 1;
             } else {
                 quantityElement.textContent = 0;
-                prodottoDiv.classList.remove("product-selected");
+                prodottoDiv.classList.remove("prodotto-selezionato");
                 btnPlus.disabled = false;
                 btnMinus.disabled = true;
             }
@@ -156,11 +156,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // Gestione ordini e asporto
-    const checkboxAsporto = document.getElementById("isTakeaway");
-    const tavoloWrapper = document.getElementById("tavolo-wrapper");
-    const personeWrapper = document.getElementById("persone-wrapper");
-    const campoTavolo = document.getElementById("customer-table");
-    const campoPersone = document.getElementById("customer-people");
+    const checkboxAsporto = document.getElementById("checkbox-asporto");
+    const tavoloWrapper = document.getElementById("contenitore-tavolo");
+    const personeWrapper = document.getElementById("contenitore-persone");
+    const campoTavolo = document.getElementById("numero-tavolo");
+    const campoPersone = document.getElementById("numero-persone");
 
     function aggiornaVisibilitaCampi() {
         const asporto = checkboxAsporto.checked;

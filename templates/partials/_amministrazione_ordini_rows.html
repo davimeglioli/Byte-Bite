@@ -1,0 +1,20 @@
+{% for ordine in ordini %}
+<tr>
+    <td>{{ ordine['id'] }}</td>
+    <td>{{ ordine['nome_cliente'] }}</td>
+    <td>{{ ordine['numero_tavolo'] if ordine['numero_tavolo'] else '-' }}</td>
+    <td>{{ ordine['numero_persone'] if ordine['numero_persone'] else '-' }}</td>
+    <td>{{ ordine['data_ordine'] }}</td>
+    <td>{{ ordine['metodo_pagamento'] }}</td>
+    <td>{{ "%.2f"|format(ordine['totale']) }} €</td>
+    <td>
+        <button class="bottone-modifica">✎</button>
+        <button class="bottone-cancella">✕</button>
+    </td>
+    <td>
+        <button class="bottone-espandi">
+            <span class="espandi"></span>
+        </button>
+    </td>
+</tr>
+{% endfor %}

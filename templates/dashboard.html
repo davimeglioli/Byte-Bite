@@ -17,33 +17,33 @@
         <p>Sagra Natività della Beata Vergine Maria</p>
     </header>
 
-    <body class="dashboard">
-        <div class="orders-container">
+    <body class="cruscotto">
+        <div class="griglia-ordini">
 
             {% for ordine in ordini_non_completati %}
-                <div class="order-card" data-status="{{ ordine['stato'] }}" data-id="{{ordine['id']}}">
-                    <h2 class="order-title">{{ordine['nome_cliente']}}</h2>
+                <div class="scheda-ordine" data-status="{{ ordine['stato'] }}" data-id="{{ordine['id']}}">
+                    <h2 class="titolo-ordine">{{ordine['nome_cliente']}}</h2>
 
-                    <div class="order-info">
+                    <div class="info-ordine">
                     <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
                     <div>{{ordine['data_ordine'][11:16]}}</div> <!-- Mostra solo l'ora -->
                     <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
                     </div>
 
-                    <div class="order-divider"></div>
+                    <div class="divisore-ordine"></div>
 
-                    <div class="order-items-container">
+                    <div class="lista-articoli-ordine">
                         {% for prodotto in ordine['prodotti'] %}
-                        <div class="order-item">
+                        <div class="riga-articolo-ordine">
                             <span>{{ prodotto['nome'] }}</span>
-                            <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+                            <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
                         </div>
                         {% endfor %}
                     </div>
 
 
-                    <div class="order-status">
-                        <button class="order-btn" data-status="{{ ordine['stato']}}" data-id="{{ ordine['id'] }}" data-categoria="{{ category }}" onclick="cambiaStato(this)">
+                    <div class="stato-ordine">
+                        <button class="tasto-azione-ordine" data-status="{{ ordine['stato']}}" data-id="{{ ordine['id'] }}" data-categoria="{{ category }}" onclick="cambiaStato(this)">
                             {{ordine['stato']}}
                         </button>
                     </div>
@@ -51,24 +51,24 @@
             {% endfor %}
         </div>
 
-        <hr class="dashboard-divider" />
+        <hr class="divisore-cruscotto" />
 
-        <h2 class="completed-title">Ordini Completati</h2>
-        <div class="orders-container">
+        <h2 class="titolo-completati">Ordini Completati</h2>
+        <div class="griglia-ordini">
             {% for ordine in ordini_completati %}  
-            <div class="order-card completed">
-                <h2 class="order-title">{{ordine['nome_cliente']}}</h2>
-                <div class="order-info">
+            <div class="scheda-ordine completato">
+                <h2 class="titolo-ordine">{{ordine['nome_cliente']}}</h2>
+                <div class="info-ordine">
                     <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
                     <div>{{ordine['data_ordine'][11:16]}}</div> <!-- Mostra solo l'ora -->
                     <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
                     </div>
-                <div class="order-divider-completed"></div>
-                <div class="order-items-container">
+                <div class="divisore-ordine-completato"></div>
+                <div class="lista-articoli-ordine">
                     {% for prodotto in ordine['prodotti'] %}
-                    <div class="order-item">
+                    <div class="riga-articolo-ordine">
                         <span>{{ prodotto['nome'] }}</span>
-                        <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+                        <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
                     </div>
                     {% endfor %}
                 </div>

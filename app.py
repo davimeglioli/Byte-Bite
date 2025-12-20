@@ -7,7 +7,8 @@ from flask_socketio import SocketIO, join_room
 import uuid
 from functools import wraps
 
-timers_attivi = {}
+# Dizionario per tracciare i timer attivi per gli ordini
+timer_attivi = {}
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -15,57 +16,80 @@ app.secret_key = secrets.token_hex(32)
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    ping_timeout=60,      # quanto tempo il server aspetta un PONG
-    ping_interval=25,     # ogni quanto manda un PING
-    
+    ping_timeout=60,      # Quanto tempo il server aspetta un PONG
+    ping_interval=25,     # Ogni quanto manda un PING
 )
 
-def login_required(f):
+# --- UTILITY DATABASE ---
+
+def ottieni_db():
+    """Stabilisce una connessione al database."""
+    connessione = sq.connect('db.sqlite3')
+    connessione.row_factory = sq.Row
+    return connessione
+
+def esegui_query(query, argomenti=(), uno=False, commit=False):
+    """Esegue una query SQL e gestisce la connessione."""
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(query, argomenti)
+        righe = None
+        if not commit:
+            righe = cursore.fetchall()
+        if commit:
+            connessione.commit()
+    return (righe[0] if righe else None) if uno else (righe or [])
+
+# --- UTILITY AUTENTICAZIONE ---
+
+def ottieni_utente_loggato():
+    """Recupera i dati dell'utente attualmente loggato."""
+    id_utente = session.get("id_utente")
+    if not id_utente:
+        return None
+
+    return esegui_query(
+        "SELECT id, username, is_admin, attivo FROM utenti WHERE id = ?",
+        (id_utente,),
+        uno=True
+    )
+
+def accesso_richiesto(f):
+    """Decoratore per richiedere il login per accedere a una route."""
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect("/login/")
+        if "id_utente" not in session:
+            return redirect(url_for('accesso'))
         return f(*args, **kwargs)
     return wrapper
 
-def get_logged_user():
-    user_id = session.get("user_id")
-    if not user_id:
-        return None
-
-    return query_db(
-        "SELECT id, username, is_admin, attivo FROM utenti WHERE id = ?",
-        (user_id,),
-        one=True
-    )
-
-def require_permission(pagina):
+def richiedi_permesso(pagina):
+    """Decoratore per verificare i permessi di accesso a una pagina specifica."""
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-
             # Utente NON loggato
-            if "user_id" not in session:
-                return redirect("/login/")
+            if "id_utente" not in session:
+                return redirect(url_for('accesso'))
 
-            user = get_logged_user()
+            utente = ottieni_utente_loggato()
 
             # Utente disattivo → espellilo
-            if not user or user["attivo"] != 1:
+            if not utente or utente["attivo"] != 1:
                 session.clear()
-                return redirect("/login/")
+                return redirect(url_for('accesso'))
 
             # Admin → ha accesso totale
-            if user["is_admin"] == 1:
+            if utente["is_admin"] == 1:
                 return f(*args, **kwargs)
 
             # Controlla se ha il permesso richiesto
-            perm = query_db("""
+            permesso = esegui_query("""
                 SELECT 1 FROM permessi_pagine
                 WHERE utente_id = ? AND pagina = ?
-            """, (user["id"], pagina), one=True)
+            """, (utente["id"], pagina), uno=True)
 
-            if perm:
+            if permesso:
                 return f(*args, **kwargs)
 
             # Altrimenti → accesso negato
@@ -74,60 +98,283 @@ def require_permission(pagina):
         return wrapper
     return decorator
 
+# --- UTILITY SOCKETIO ---
 
-# chiude in automatico la connessione con il db in caso di errore
-def query_db(query, args=(), one=False, commit=False):
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute(query, args)
-        rows = None
-        if not commit:
-            rows = cur.fetchall()
-        if commit:
-            conn.commit()
-    return (rows[0] if rows else None) if one else (rows or [])
-
-# invia un messaggio SocketIO senza far crashare il server in caso di errore
-def safe_emit(event, data, room=None):
+def emissione_sicura(evento, dati, stanza=None):
+    """Invia un messaggio SocketIO gestendo eventuali errori."""
     try:
-        socketio.emit(event, data, room=room)
+        socketio.emit(evento, dati, room=stanza)
     except Exception as e:
-        app.logger.warning(f"[SocketIO] Errore durante emit: {e}")
+        app.logger.warning(f"[SocketIO] Errore durante emissione: {e}")
 
 @socketio.on('join')
-def on_join(data):
-    categoria = data.get('categoria')
+def gestisci_join(dati):
+    """Gestisce l'ingresso di un client in una stanza SocketIO."""
+    categoria = dati.get('categoria')
     if categoria:
-        # es: "Cucina", "Bar", "Griglia"...
+        # Es: "Cucina", "Bar", "Griglia"...
         join_room(categoria)
         print(f"[WS] Dashboard entrata nella stanza: {categoria}")
 
-def get_db():
-    conn = sq.connect('db.sqlite3')
-    conn.row_factory = sq.Row
-    return conn
+# --- LOGICA DI BUSINESS ---
+
+def ottieni_ordini_per_categoria(categoria):
+    """Recupera gli ordini (completati e non) per una specifica categoria."""
+    categoria = categoria.capitalize()
+    
+    ordini_db = esegui_query("""
+        SELECT 
+            o.id AS ordine_id,
+            o.nome_cliente,
+            o.numero_tavolo,
+            o.numero_persone,
+            o.data_ordine,
+            op.stato,
+            p.nome AS prodotto_nome,
+            op.quantita
+        FROM ordini AS o
+        JOIN ordini_prodotti AS op ON o.id = op.ordine_id
+        JOIN prodotti AS p ON p.id = op.prodotto_id
+        WHERE p.categoria_dashboard = ?
+        ORDER BY o.data_ordine ASC;
+    """, (categoria,))
+
+    # Raggruppa per ordine
+    ordini = {}
+    for riga in ordini_db:
+        oid = riga["ordine_id"]
+        ordini.setdefault(oid, {
+            "id": oid,
+            "nome_cliente": riga["nome_cliente"],
+            "numero_tavolo": riga["numero_tavolo"],
+            "numero_persone": riga["numero_persone"],
+            "data_ordine": riga["data_ordine"],
+            "stato": riga["stato"],
+            "prodotti": []
+        })["prodotti"].append({
+            "nome": riga["prodotto_nome"],
+            "quantita": riga["quantita"]
+        })
+
+    # Divide ordini completati e non completati
+    ordini_non_completati = []
+    ordini_completati = []
+
+    for ordine in ordini.values():
+        if ordine["stato"] == "Completato":
+            ordini_completati.append(ordine)
+        else:
+            ordini_non_completati.append(ordine)
+
+    # Ordina i completati dal più recente
+    ordini_completati.sort(key=lambda o: o["data_ordine"], reverse=True)
+
+    return ordini_non_completati, ordini_completati
+
+def ricalcola_statistiche():
+    """Ricalcola tutte le statistiche e le salva nel database."""
+    # Carica tutti gli ordini
+    ordini = esegui_query("""
+        SELECT id, metodo_pagamento, data_ordine, completato
+        FROM ordini
+    """)
+
+    # Totale ordini e completati
+    ordini_totali = len(ordini)
+    ordini_completati = sum(1 for o in ordini if o["completato"] == 1)
+
+    # Reset statistiche
+    esegui_query("DELETE FROM statistiche_totali", commit=True)
+    esegui_query("DELETE FROM statistiche_categorie", commit=True)
+    esegui_query("DELETE FROM statistiche_ore", commit=True)
+
+    # Categorie dashboard fisse
+    categorie = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
+
+    # Inserisce le categorie
+    for cat in categorie:
+        esegui_query("""
+            INSERT INTO statistiche_categorie (categoria_dashboard, totale)
+            VALUES (?, 0)
+        """, (cat,), commit=True)
+
+    # Inizializza ore da 0 a 23
+    for h in range(24):
+        esegui_query("""
+            INSERT INTO statistiche_ore (ora, totale)
+            VALUES (?, 0)
+        """, (h,), commit=True)
+
+    # Inizializza totali incasso
+    totale_incasso = 0
+    totale_contanti = 0
+    totale_carta = 0
+
+    # Ciclo su tutti gli ordini
+    for ordine in ordini:
+        ordine_id = ordine["id"]
+        metodo = ordine["metodo_pagamento"]
+
+        # Calcola incasso dell'ordine
+        incasso_ordine = esegui_query("""
+            SELECT SUM(p.prezzo * op.quantita) AS totale
+            FROM ordini_prodotti op
+            JOIN prodotti p ON p.id = op.prodotto_id
+            WHERE op.ordine_id = ?
+        """, (ordine_id,), uno=True)["totale"] or 0
+
+        # Somma incasso totale
+        totale_incasso += incasso_ordine
+
+        # Aggiorna incassi contanti/carta
+        if metodo == "Contanti":
+            totale_contanti += incasso_ordine
+        else:
+            totale_carta += incasso_ordine
+
+        # Calcola ora dell'ordine
+        ora = esegui_query("""
+            SELECT CAST(strftime('%H', data_ordine) AS INT) AS h
+            FROM ordini WHERE id = ?
+        """, (ordine_id,), uno=True)["h"]
+
+        # Aggiorna statistiche per ora
+        esegui_query("""
+            UPDATE statistiche_ore
+            SET totale = totale + 1
+            WHERE ora = ?
+        """, (ora,), commit=True)
+
+        # Calcola categorie dashboard coinvolte
+        righe_cat = esegui_query("""
+            SELECT p.categoria_dashboard, SUM(op.quantita) AS qta
+            FROM ordini_prodotti op
+            JOIN prodotti p ON p.id = op.prodotto_id
+            WHERE op.ordine_id = ?
+            GROUP BY p.categoria_dashboard
+        """, (ordine_id,))
+
+        # Aggiorna statistiche categorie
+        for riga in righe_cat:
+            esegui_query("""
+                UPDATE statistiche_categorie
+                SET totale = totale + ?
+                WHERE categoria_dashboard = ?
+            """, (riga["qta"], riga["categoria_dashboard"]), commit=True)
+
+    # Inserisce statistiche totali
+    esegui_query("""
+        INSERT INTO statistiche_totali
+        (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
+        VALUES (1, ?, ?, ?, ?, ?)
+    """, (
+        ordini_totali,
+        ordini_completati,
+        totale_incasso,
+        totale_contanti,
+        totale_carta
+    ), commit=True)
+
+def cambia_stato_automatico(ordine_id, categoria, timer_id):
+    """Gestisce il passaggio automatico allo stato 'Completato' dopo un timeout."""
+    chiave_timer = (ordine_id, categoria)
+    
+    for i in range(10):
+        socketio.sleep(1)
+        # Se è stato richiesto di annullare, interrompi
+        if (
+            chiave_timer not in timer_attivi
+            or timer_attivi[chiave_timer]["id"] != timer_id
+            or timer_attivi[chiave_timer]["annulla"]
+        ):
+            return
+
+    # Controlla che non sia stato annullato nel frattempo
+    if chiave_timer not in timer_attivi or timer_attivi[chiave_timer]["annulla"]:
+        return
+
+    # Aggiorna stato a completato
+    esegui_query("""
+        UPDATE ordini_prodotti
+        SET stato = 'Completato'
+        WHERE ordine_id = ?
+        AND prodotto_id IN (
+            SELECT id FROM prodotti WHERE categoria_dashboard = ?
+        );
+    """, (ordine_id, categoria), commit=True)
+
+    residui = esegui_query(
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        (ordine_id,),
+        uno=True
+    )["c"]
+    esegui_query(
+        "UPDATE ordini SET completato = ? WHERE id = ?",
+        (1 if residui == 0 else 0, ordine_id),
+        commit=True
+    )
+
+    # Rimuovi il timer dalla lista
+    timer_attivi.pop(chiave_timer, None)
+
+    emissione_sicura('aggiorna_dashboard', {'categoria': categoria}, stanza=categoria)
+    socketio.start_background_task(ricalcola_statistiche)
+
+# --- ROUTES: AUTENTICAZIONE ---
+
+@app.route('/login/', methods=['GET', 'POST'])
+def accesso():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password").encode()
+
+        utente = esegui_query("""
+            SELECT id, username, password_hash, is_admin, attivo
+            FROM utenti WHERE username = ?
+        """, (username,), uno=True)
+
+        if not utente:
+            return render_template("login.html", error="Username o password errata")
+
+        if utente["attivo"] != 1:
+            return render_template("login.html", error="Account disattivato")
+
+        # Verifica password
+        if not bcrypt.checkpw(password, utente["password_hash"].encode()):
+            return render_template("login.html", error="Username o password errata")
+
+        # Login riuscito
+        session["id_utente"] = utente["id"]
+        session["username"] = utente["username"]
+
+        return redirect(url_for('home'))
+
+    return render_template("login.html")
+
+# --- ROUTES: GENERALI ---
 
 @app.route('/')
-def index():
+def home():
     return render_template('index.html')
 
+# --- ROUTES: CASSA ---
+
 @app.route('/cassa/')
-@login_required
-@require_permission("CASSA")
+@accesso_richiesto
+@richiedi_permesso("CASSA")
 def cassa():
-    conn = get_db()
+    conn = ottieni_db()
     conn.row_factory = sq.Row
-    cur = conn.cursor()
+    
+    # Usa GROUP BY per ottenere categorie uniche mantenendo l'ordine originale
+    categorie_righe = esegui_query('SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)')
+    categorie = [riga['categoria_menu'] for riga in categorie_righe]
 
-    # usa GROUP BY per ottenere categorie uniche mantenendo l'ordine originale
-    categorie_rows = query_db('SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)')
-    categorie = [row['categoria_menu'] for row in categorie_rows]
-
-    # prodotti per ogni categoria
+    # Prodotti per ogni categoria
     prodotti_per_categoria = {}
-    for categoria in categorie:
-        prodotti_per_categoria[categoria] = query_db(
-            'SELECT * FROM prodotti WHERE categoria_menu = ?', (categoria,)
+    for cat in categorie:
+        prodotti_per_categoria[cat] = esegui_query(
+            'SELECT * FROM prodotti WHERE categoria_menu = ?', (cat,)
         )
 
     return render_template(
@@ -157,51 +404,53 @@ def aggiungi_ordine():
         prodotti = []
 
     # Inserisce il nuovo ordine
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute("""
             INSERT INTO ordini (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento)
             VALUES (?, ?, ?, ?, ?)
         """, (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento))
-        order_id = cur.lastrowid  # ID dell'ordine appena creato
+        id_ordine = cursore.lastrowid  # ID dell'ordine appena creato
 
         # Inserisci i prodotti e aggiorna il magazzino
         for p in prodotti:
-            cur.execute("""
+            cursore.execute("""
                 INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)
                 VALUES (?, ?, ?, ?)
-            """, (order_id, p["id"], p["quantita"], "In Attesa"))
-            cur.execute("""
+            """, (id_ordine, p["id"], p["quantita"], "In Attesa"))
+            cursore.execute("""
                 UPDATE prodotti
                 SET quantita = quantita - ?, venduti = venduti + ?
                 WHERE id = ?
             """, (p["quantita"], p["quantita"], p["id"]))
 
         # Ottieni tutte le categorie dashboard coinvolte in questo ordine
-        cur.execute("""
+        cursore.execute("""
             SELECT DISTINCT prodotti.categoria_dashboard
             FROM ordini_prodotti
             JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
             WHERE ordini_prodotti.ordine_id = ?
-        """, (order_id,))
-        categorie_dashboard = [row[0] for row in cur.fetchall()] # Trasforma il risultato SQL in una lista Python
-        conn.commit()  # Chiude automaticamente alla fine del blocco
+        """, (id_ordine,))
+        categorie_dashboard = [riga[0] for riga in cursore.fetchall()]
+        connessione.commit()
 
     # Avvisa le dashboard in tempo reale
     for cat in categorie_dashboard:
-        safe_emit('aggiorna_dashboard', {'categoria': cat}, room=cat)
+        emissione_sicura('aggiorna_dashboard', {'categoria': cat}, stanza=cat)
     socketio.start_background_task(ricalcola_statistiche)
 
-    return redirect(url_for('cassa') + f'?last_order_id={order_id}', code=303)
+    return redirect(url_for('cassa') + f'?last_order_id={id_ordine}', code=303)
+
+# --- ROUTES: DASHBOARD ---
 
 @app.route('/dashboard/<category>/')
-@login_required
+@accesso_richiesto
 def dashboard(category):
     permesso = "DASHBOARD_" + category.upper()
 
-    require_permission(permesso)(lambda: None)()
+    richiedi_permesso(permesso)(lambda: None)()
 
-    ordini_non_completati, ordini_completati = get_ordini_per_categoria(category)
+    ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
     return render_template(
         'dashboard.html',
         category=category.capitalize(),
@@ -209,97 +458,9 @@ def dashboard(category):
         ordini_completati=ordini_completati
     )
 
-@app.route('/cambia_stato/', methods=['POST'])
-def cambia_stato():
-    data = request.get_json()
-    ordine_id = data.get('ordine_id')
-    categoria = data.get('categoria')
-
-    # Leggi stato attuale
-    stato_attuale_row = query_db("""
-        SELECT stato 
-        FROM ordini_prodotti
-        JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
-        WHERE ordine_id = ? AND prodotti.categoria_dashboard = ?
-        LIMIT 1;
-    """, (ordine_id, categoria), one=True)
-
-    stato_attuale = stato_attuale_row["stato"]
-
-    # Calcola nuovo stato
-    stati = ["In Attesa", "In Preparazione", "Pronto", "Completato"]
-
-    timer_key = (ordine_id, categoria)
-
-    if stato_attuale == "Pronto":
-        # Se esiste un timer, annullalo
-        if timer_key in timers_attivi:
-            timers_attivi[timer_key]["annulla"] = True
-            del timers_attivi[timer_key]
-            print(f"[AUTO] Timer annullato per ordine {ordine_id} ({categoria})")
-
-        nuovo_stato = "In Preparazione"
-
-    # Altrimenti avanza di stato normalmente
-    else:
-        nuovo_stato = stati[stati.index(stato_attuale) + 1]
-
-    # Aggiorna lo stato nel DB
-    query_db("""
-        UPDATE ordini_prodotti
-        SET stato = ?
-        WHERE ordine_id = ?
-        AND prodotto_id IN (
-            SELECT id FROM prodotti WHERE categoria_dashboard = ?
-        );
-    """, (nuovo_stato, ordine_id, categoria), commit=True)
-
-    residui = query_db(
-        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
-        (ordine_id,),
-        one=True
-    )["c"]
-    query_db(
-        "UPDATE ordini SET completato = ? WHERE id = ?",
-        (1 if residui == 0 else 0, ordine_id),
-        commit=True
-    )
-
-    # Avvisa subito la dashboard
-    safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
-    socketio.start_background_task(ricalcola_statistiche)
-
-    if nuovo_stato == "Pronto":
-    # Invalida qualsiasi vecchio timer
-        if timer_key in timers_attivi:
-            timers_attivi[timer_key]["annulla"] = True
-            timers_attivi.pop(timer_key, None)
-
-        socketio.sleep(0.1)  # piccolo delay per sicurezza
-        timer_id = str(uuid.uuid4())  # ID univoco per questo timer
-        timers_attivi[timer_key] = {"annulla": False, "id": timer_id}
-        socketio.start_background_task(cambia_stato_automatico, ordine_id, categoria, timer_id)
-        print(f"[AUTO] Timer avviato per ordine {ordine_id} ({categoria}) → {timer_id}")
-
-    # Ricarica ordini aggiornati per quella categoria
-    ordini_non_completati, ordini_completati = get_ordini_per_categoria(categoria)
-    html_non_completati = render_template(
-        'partials/_ordini.html', ordini=ordini_non_completati, category=categoria
-    )
-    html_completati = render_template(
-        'partials/_ordini.html', ordini=ordini_completati, category=categoria, completati=True
-    )
-
-    return jsonify({
-        "nuovo_stato": nuovo_stato,
-        "html_non_completati": html_non_completati,
-        "html_completati": html_completati
-    })
-
-
 @app.route('/dashboard/<category>/partial')
-def dashboard_partial(category):
-    ordini_non_completati, ordini_completati = get_ordini_per_categoria(category)
+def dashboard_parziale(category):
+    ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
 
     html_non_completati = render_template(
         'partials/_ordini.html',
@@ -318,122 +479,150 @@ def dashboard_partial(category):
         "html_completati": html_completati
     })
 
+@app.route('/cambia_stato/', methods=['POST'])
+def cambia_stato():
+    dati = request.get_json()
+    id_ordine = dati.get('ordine_id')
+    categoria = dati.get('categoria')
 
-def get_ordini_per_categoria(categoria):
-    categoria = categoria.capitalize()
-    
-    ordini_db = query_db("""
-        SELECT 
-            o.id AS ordine_id,
-            o.nome_cliente,
-            o.numero_tavolo,
-            o.numero_persone,
-            o.data_ordine,
-            op.stato,
-            p.nome AS prodotto_nome,
-            op.quantita
-        FROM ordini AS o
-        JOIN ordini_prodotti AS op ON o.id = op.ordine_id
-        JOIN prodotti AS p ON p.id = op.prodotto_id
-        WHERE p.categoria_dashboard = ?
-        ORDER BY o.data_ordine ASC;
-    """, (categoria,))
+    # Leggi stato attuale
+    riga_stato = esegui_query("""
+        SELECT stato 
+        FROM ordini_prodotti
+        JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
+        WHERE ordine_id = ? AND prodotti.categoria_dashboard = ?
+        LIMIT 1;
+    """, (id_ordine, categoria), uno=True)
 
-    # Raggruppa per ordine
-    ordini = {}
-    for o in ordini_db:
-        oid = o["ordine_id"]
-        ordini.setdefault(oid, {
-            "id": oid,
-            "nome_cliente": o["nome_cliente"],
-            "numero_tavolo": o["numero_tavolo"],
-            "numero_persone": o["numero_persone"],
-            "data_ordine": o["data_ordine"],
-            "stato": o["stato"],
-            "prodotti": []
-        })["prodotti"].append({
-            "nome": o["prodotto_nome"],
-            "quantita": o["quantita"]
-        })
+    stato_attuale = riga_stato["stato"]
 
-    # Divide ordini completati e non completati
-    ordini_non_completati = []
-    ordini_completati = []
+    # Calcola nuovo stato
+    stati = ["In Attesa", "In Preparazione", "Pronto", "Completato"]
 
-    for o in ordini.values():
-        if o["stato"] == "Completato":
-            ordini_completati.append(o)
-        else:
-            ordini_non_completati.append(o)
+    chiave_timer = (id_ordine, categoria)
 
-    # Ordina i completati dal più recente
-    ordini_completati.sort(key=lambda o: o["data_ordine"], reverse=True)
+    if stato_attuale == "Pronto":
+        # Se esiste un timer, annullalo
+        if chiave_timer in timer_attivi:
+            timer_attivi[chiave_timer]["annulla"] = True
+            del timer_attivi[chiave_timer]
+            print(f"[AUTO] Timer annullato per ordine {id_ordine} ({categoria})")
 
+        nuovo_stato = "In Preparazione"
 
-    return ordini_non_completati, ordini_completati
+    # Altrimenti avanza di stato normalmente
+    else:
+        nuovo_stato = stati[stati.index(stato_attuale) + 1]
 
-def cambia_stato_automatico(ordine_id, categoria, timer_id):
-    timer_key = (ordine_id, categoria)
-    
-    for i in range(10):
-        socketio.sleep(1)
-        # Se è stato richiesto di annullare, interrompi
-        if (
-            timer_key not in timers_attivi
-            or timers_attivi[timer_key]["id"] != timer_id
-            or timers_attivi[timer_key]["annulla"]
-        ):
-            return
-
-    # Controlla che non sia stato annullato nel frattempo
-    if timer_key not in timers_attivi or timers_attivi[timer_key]["annulla"]:
-        return
-
-    # Aggiorna stato a completato
-    query_db("""
+    # Aggiorna lo stato nel DB
+    esegui_query("""
         UPDATE ordini_prodotti
-        SET stato = 'Completato'
+        SET stato = ?
         WHERE ordine_id = ?
         AND prodotto_id IN (
             SELECT id FROM prodotti WHERE categoria_dashboard = ?
         );
-    """, (ordine_id, categoria), commit=True)
+    """, (nuovo_stato, id_ordine, categoria), commit=True)
 
-    residui = query_db(
+    residui = esegui_query(
         "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
-        (ordine_id,),
-        one=True
+        (id_ordine,),
+        uno=True
     )["c"]
-    query_db(
+    esegui_query(
         "UPDATE ordini SET completato = ? WHERE id = ?",
-        (1 if residui == 0 else 0, ordine_id),
+        (1 if residui == 0 else 0, id_ordine),
         commit=True
     )
 
-    # Rimuovi il timer dalla lista
-    timers_attivi.pop(timer_key, None)
-
-    safe_emit('aggiorna_dashboard', {'categoria': categoria}, room=categoria)
+    # Avvisa subito la dashboard
+    emissione_sicura('aggiorna_dashboard', {'categoria': categoria}, stanza=categoria)
     socketio.start_background_task(ricalcola_statistiche)
 
-@app.route('/api/statistiche/')
-@login_required
-@require_permission("AMMINISTRAZIONE")
-def api_statistiche():
-    ordini_totali = query_db("SELECT COUNT(*) AS c FROM ordini", one=True)["c"]
-    ordini_completati = query_db("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", one=True)["c"]
+    if nuovo_stato == "Pronto":
+        # Invalida qualsiasi vecchio timer
+        if chiave_timer in timer_attivi:
+            timer_attivi[chiave_timer]["annulla"] = True
+            timer_attivi.pop(chiave_timer, None)
 
-    totale_incasso_row = query_db(
+        socketio.sleep(0.1)  # Piccolo delay per sicurezza
+        id_timer = str(uuid.uuid4())  # ID univoco per questo timer
+        timer_attivi[chiave_timer] = {"annulla": False, "id": id_timer}
+        socketio.start_background_task(cambia_stato_automatico, id_ordine, categoria, id_timer)
+        print(f"[AUTO] Timer avviato per ordine {id_ordine} ({categoria}) → {id_timer}")
+
+    # Ricarica ordini aggiornati per quella categoria
+    ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(categoria)
+    html_non_completati = render_template(
+        'partials/_ordini.html', ordini=ordini_non_completati, category=categoria
+    )
+    html_completati = render_template(
+        'partials/_ordini.html', ordini=ordini_completati, category=categoria, completati=True
+    )
+
+    return jsonify({
+        "nuovo_stato": nuovo_stato,
+        "html_non_completati": html_non_completati,
+        "html_completati": html_completati
+    })
+
+# --- ROUTES: AMMINISTRAZIONE ---
+
+@app.route('/amministrazione/')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def amministrazione():
+    ordini = esegui_query("""
+        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
+               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
+        FROM ordini o
+        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
+        LEFT JOIN prodotti p ON op.prodotto_id = p.id
+        GROUP BY o.id
+        ORDER BY o.data_ordine DESC
+    """)
+    prodotti = esegui_query("""
+        SELECT 
+            id, 
+            nome, 
+            categoria_dashboard, 
+            categoria_menu,
+            prezzo, 
+            disponibile, 
+            quantita, 
+            venduti 
+        FROM prodotti
+        ORDER BY categoria_menu;
+    """)
+
+    categorie_db = esegui_query("SELECT DISTINCT categoria_menu FROM prodotti")
+    categorie = [riga["categoria_menu"] for riga in categorie_db]
+
+    return render_template(
+        "amministrazione.html",
+        ordini=ordini,
+        prodotti=prodotti,
+        categorie=categorie
+    )
+
+@app.route('/api/statistiche/')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def api_statistiche():
+    ordini_totali = esegui_query("SELECT COUNT(*) AS c FROM ordini", uno=True)["c"]
+    ordini_completati = esegui_query("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", uno=True)["c"]
+
+    riga_totale_incasso = esegui_query(
         """
         SELECT SUM(p.prezzo * op.quantita) AS totale
         FROM ordini_prodotti op
         JOIN prodotti p ON p.id = op.prodotto_id
         """,
-        one=True
+        uno=True
     )
-    totale_incasso = totale_incasso_row["totale"] or 0
+    totale_incasso = riga_totale_incasso["totale"] or 0
 
-    totale_contanti_row = query_db(
+    riga_totale_contanti = esegui_query(
         """
         SELECT SUM(p.prezzo * op.quantita) AS totale
         FROM ordini_prodotti op
@@ -441,11 +630,11 @@ def api_statistiche():
         JOIN ordini o ON o.id = op.ordine_id
         WHERE o.metodo_pagamento = 'Contanti'
         """,
-        one=True
+        uno=True
     )
-    totale_contanti = (totale_contanti_row["totale"] or 0)
+    totale_contanti = (riga_totale_contanti["totale"] or 0)
 
-    totale_carta_row = query_db(
+    riga_totale_carta = esegui_query(
         """
         SELECT SUM(p.prezzo * op.quantita) AS totale
         FROM ordini_prodotti op
@@ -453,11 +642,11 @@ def api_statistiche():
         JOIN ordini o ON o.id = op.ordine_id
         WHERE o.metodo_pagamento = 'Carta'
         """,
-        one=True
+        uno=True
     )
-    totale_carta = (totale_carta_row["totale"] or 0)
+    totale_carta = (riga_totale_carta["totale"] or 0)
 
-    ore_rows = query_db(
+    righe_ore = esegui_query(
         """
         SELECT CAST(strftime('%H', data_ordine) AS INT) AS ora, COUNT(*) AS totale
         FROM ordini
@@ -465,9 +654,9 @@ def api_statistiche():
         ORDER BY ora ASC
         """
     )
-    ore = [dict(r) for r in ore_rows] if ore_rows else []
+    ore = [dict(r) for r in righe_ore] if righe_ore else []
 
-    cat_rows = query_db(
+    righe_cat = esegui_query(
         """
         SELECT p.categoria_dashboard, SUM(op.quantita) AS totale
         FROM ordini_prodotti op
@@ -475,9 +664,9 @@ def api_statistiche():
         GROUP BY p.categoria_dashboard
         """
     )
-    categorie = [dict(r) for r in cat_rows] if cat_rows else []
+    categorie = [dict(r) for r in righe_cat] if righe_cat else []
 
-    top10_rows = query_db(
+    righe_top10 = esegui_query(
         """
         SELECT nome, venduti
         FROM prodotti
@@ -485,7 +674,7 @@ def api_statistiche():
         LIMIT 10
         """
     )
-    top10 = [dict(r) for r in top10_rows] if top10_rows else []
+    top10 = [dict(r) for r in righe_top10] if righe_top10 else []
 
     return jsonify({
         "totali": {
@@ -500,161 +689,130 @@ def api_statistiche():
         "top10": top10
     })
 
-@app.route('/api/ordine/<int:ordine_id>')
-def api_ordine(ordine_id):
-    header = query_db(
+@app.route('/api/rifornisci_prodotto', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def rifornisci_prodotto():
+    data = request.get_json()
+    id_prodotto = data.get('id')
+    try:
+        quantita = int(data.get('quantita'))
+    except (ValueError, TypeError):
+        return jsonify({"errore": "Quantità non valida"}), 400
+
+    if not id_prodotto or quantita <= 0:
+        return jsonify({"errore": "Dati mancanti o non validi"}), 400
+
+    esegui_query(
+        "UPDATE prodotti SET quantita = quantita + ? WHERE id = ?",
+        (quantita, id_prodotto),
+        commit=True
+    )
+    
+    # Aggiorna anche lo stato di disponibilità se necessario
+    esegui_query(
+        "UPDATE prodotti SET disponibile = 1 WHERE id = ? AND quantita > 0",
+        (id_prodotto,),
+        commit=True
+    )
+
+    return jsonify({"messaggio": "Prodotto rifornito con successo"})
+
+@app.route('/api/modifica_prodotto', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def modifica_prodotto():
+    data = request.get_json()
+    
+    try:
+        # Logica automatica disponibilità
+        quantita = int(data['quantita'])
+        disponibile = 1 if quantita > 0 else 0
+        
+        # Se l'utente ha esplicitamente disattivato la disponibilità anche con quantità > 0 (opzionale, ma sicuro)
+        # In questo caso seguiamo la logica richiesta: la quantità comanda lo stato.
+        # Se vuoi che l'utente possa avere Qta > 0 ma Disponibile = False, rimuovi la riga sopra e usa data['disponibile']
+        # Ma per ora implemento la richiesta "passa a disponibile in auto"
+        
+        esegui_query("""
+            UPDATE prodotti 
+            SET nome = ?, categoria_dashboard = ?, quantita = ?, disponibile = ?
+            WHERE id = ?
+        """, (
+            data['nome'], 
+            data['categoria_dashboard'], 
+            quantita, 
+            disponibile,
+            data['id']
+        ), commit=True)
+        return jsonify({"messaggio": "Prodotto modificato con successo"})
+    except Exception as e:
+        print(f"Errore modifica prodotto: {e}")
+        return jsonify({"errore": "Errore durante la modifica"}), 500
+
+@app.route('/api/elimina_prodotto', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def elimina_prodotto():
+    data = request.get_json()
+    
+    try:
+        esegui_query("DELETE FROM prodotti WHERE id = ?", (data['id'],), commit=True)
+        return jsonify({"messaggio": "Prodotto eliminato con successo"})
+    except Exception as e:
+        print(f"Errore eliminazione prodotto: {e}")
+        return jsonify({"errore": "Errore durante l'eliminazione"}), 500
+
+@app.route('/api/ordine/<int:id_ordine>')
+def api_ordine(id_ordine):
+    intestazione = esegui_query(
         """
         SELECT id, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, data_ordine
         FROM ordini
         WHERE id = ?
         """,
-        (ordine_id,),
-        one=True
+        (id_ordine,),
+        uno=True
     )
-    if not header:
+    if not intestazione:
         abort(404)
-    items_rows = query_db(
+    righe_articoli = esegui_query(
         """
         SELECT p.nome AS nome, op.quantita AS quantita, p.prezzo AS prezzo
         FROM ordini_prodotti op
         JOIN prodotti p ON p.id = op.prodotto_id
         WHERE op.ordine_id = ?
         """,
-        (ordine_id,)
+        (id_ordine,)
     )
-    items = [
+    articoli = [
         {"nome": r["nome"], "quantita": r["quantita"], "prezzo": r["prezzo"]}
-        for r in items_rows
+        for r in righe_articoli
     ]
     return jsonify({
-        "id": header["id"],
-        "nome_cliente": header["nome_cliente"],
-        "numero_tavolo": header["numero_tavolo"],
-        "numero_persone": header["numero_persone"],
-        "metodo_pagamento": header["metodo_pagamento"],
-        "data_ordine": header["data_ordine"],
-        "items": items
+        "id": intestazione["id"],
+        "nome_cliente": intestazione["nome_cliente"],
+        "numero_tavolo": intestazione["numero_tavolo"],
+        "numero_persone": intestazione["numero_persone"],
+        "metodo_pagamento": intestazione["metodo_pagamento"],
+        "data_ordine": intestazione["data_ordine"],
+        "items": articoli
     })
 
-@app.route('/amministrazione/')
-@login_required
-@require_permission("AMMINISTRAZIONE")
-def amministrazione():
-    return render_template(
-        "amministrazione.html"
-    )
-
-def ricalcola_statistiche():
-    conn = get_db()
-    cur = conn.cursor()
-
-    # carica tutti gli ordini
-    ordini = query_db("""
-        SELECT id, metodo_pagamento, data_ordine, completato
-        FROM ordini
+@app.route('/api/amministrazione/ordini_html')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def api_amministrazione_ordini_html():
+    ordini = esegui_query("""
+        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
+               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
+        FROM ordini o
+        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
+        LEFT JOIN prodotti p ON op.prodotto_id = p.id
+        GROUP BY o.id
+        ORDER BY o.data_ordine DESC
     """)
-
-    # totale ordini e completati
-    ordini_totali = len(ordini)
-    ordini_completati = sum(1 for o in ordini if o["completato"] == 1)
-
-    # reset statistiche totali
-    query_db("DELETE FROM statistiche_totali", commit=True)
-
-    # reset statistiche categorie
-    query_db("DELETE FROM statistiche_categorie", commit=True)
-
-    # reset statistiche ore
-    query_db("DELETE FROM statistiche_ore", commit=True)
-
-    # categorie dashboard fisse
-    categorie = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
-
-    # inserisce le categorie
-    for cat in categorie:
-        query_db("""
-            INSERT INTO statistiche_categorie (categoria_dashboard, totale)
-            VALUES (?, 0)
-        """, (cat,), commit=True)
-
-    # inizializza ore da 0 a 23
-    for h in range(24):
-        query_db("""
-            INSERT INTO statistiche_ore (ora, totale)
-            VALUES (?, 0)
-        """, (h,), commit=True)
-
-    # inizializza totali incasso
-    totale_incasso = 0
-    totale_contanti = 0
-    totale_carta = 0
-
-    # ciclo su tutti gli ordini
-    for ordine in ordini:
-        ordine_id = ordine["id"]
-        metodo = ordine["metodo_pagamento"]
-
-        # calcola incasso dell'ordine
-        incasso_ordine = query_db("""
-            SELECT SUM(p.prezzo * op.quantita) AS totale
-            FROM ordini_prodotti op
-            JOIN prodotti p ON p.id = op.prodotto_id
-            WHERE op.ordine_id = ?
-        """, (ordine_id,), one=True)["totale"] or 0
-
-        # somma incasso totale
-        totale_incasso += incasso_ordine
-
-        # aggiorna incassi contanti/carta
-        if metodo == "Contanti":
-            totale_contanti += incasso_ordine
-        else:
-            totale_carta += incasso_ordine
-
-        # calcola ora dell'ordine
-        ora = query_db("""
-            SELECT CAST(strftime('%H', data_ordine) AS INT) AS h
-            FROM ordini WHERE id = ?
-        """, (ordine_id,), one=True)["h"]
-
-        # aggiorna statistiche per ora
-        query_db("""
-            UPDATE statistiche_ore
-            SET totale = totale + 1
-            WHERE ora = ?
-        """, (ora,), commit=True)
-
-        # calcola categorie dashboard coinvolte
-        righe_cat = query_db("""
-            SELECT p.categoria_dashboard, SUM(op.quantita) AS qta
-            FROM ordini_prodotti op
-            JOIN prodotti p ON p.id = op.prodotto_id
-            WHERE op.ordine_id = ?
-            GROUP BY p.categoria_dashboard
-        """, (ordine_id,))
-
-        # aggiorna statistiche categorie
-        for r in righe_cat:
-            query_db("""
-                UPDATE statistiche_categorie
-                SET totale = totale + ?
-                WHERE categoria_dashboard = ?
-            """, (r["qta"], r["categoria_dashboard"]), commit=True)
-
-    # inserisce statistiche totali
-    query_db("""
-        INSERT INTO statistiche_totali
-        (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
-        VALUES (1, ?, ?, ?, ?, ?)
-    """, (
-        ordini_totali,
-        ordini_completati,
-        totale_incasso,
-        totale_contanti,
-        totale_carta
-    ), commit=True)
-
-    return None
+    return render_template('partials/_amministrazione_ordini_rows.html', ordini=ordini)
 
 @app.route('/genera_statistiche/')
 def genera_statistiche():
@@ -662,47 +820,18 @@ def genera_statistiche():
     return redirect('/amministrazione/')
 
 @app.route('/debug/reset_dati/')
-@login_required
-@require_permission("AMMINISTRAZIONE")
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
 def debug_reset_dati():
-    query_db("DELETE FROM ordini_prodotti", commit=True)
-    query_db("DELETE FROM ordini", commit=True)
-    query_db("UPDATE prodotti SET disponibile = 1, quantita = 100, venduti = 0", commit=True)
+    esegui_query("DELETE FROM ordini_prodotti", commit=True)
+    esegui_query("DELETE FROM ordini", commit=True)
+    esegui_query("UPDATE prodotti SET disponibile = 1, quantita = 100, venduti = 0", commit=True)
     ricalcola_statistiche()
     return redirect('/amministrazione/')
 
-@app.route('/login/', methods=['GET', 'POST'])
-def login():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password").encode()
-
-        user = query_db("""
-            SELECT id, username, password_hash, is_admin, attivo
-            FROM utenti WHERE username = ?
-        """, (username,), one=True)
-
-        if not user:
-            return render_template("login.html", error="Username o password errata")
-
-        if user["attivo"] != 1:
-            return render_template("login.html", error="Account disattivato")
-
-        # verifica password
-        if not bcrypt.checkpw(password, user["password_hash"].encode()):
-            return render_template("login.html", error="Username o password errata")
-
-        # login riuscito
-        session["user_id"] = user["id"]
-        session["username"] = user["username"]
-
-        return redirect("/")
-
-    return render_template("login.html")
-
+# --- AVVIO SERVER ---
 
 if __name__ == '__main__':
-    import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(('8.8.8.8', 80))
@@ -713,4 +842,3 @@ if __name__ == '__main__':
         s.close()
     print(f'Avvio server — apri: http://{ip}:8000/')
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)
-    

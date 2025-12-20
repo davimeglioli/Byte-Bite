@@ -31,8 +31,8 @@ function cambiaStato(button) {
     })
         .then(res => res.json())
         .then(data => {
-            document.querySelectorAll('.orders-container')[0].innerHTML = data.html_non_completati;
-            document.querySelectorAll('.orders-container')[1].innerHTML = data.html_completati;
+            document.querySelectorAll('.griglia-ordini')[0].innerHTML = data.html_non_completati;
+            document.querySelectorAll('.griglia-ordini')[1].innerHTML = data.html_completati;
         })
         .catch(err => console.error("Errore:", err));
 }
@@ -42,8 +42,8 @@ function aggiornaDashboard() {
     fetch(`/dashboard/${categoria}/partial`)
         .then(res => res.json())
         .then(data => {
-            document.querySelectorAll('.orders-container')[0].innerHTML = data.html_non_completati;
-            document.querySelectorAll('.orders-container')[1].innerHTML = data.html_completati;
+            document.querySelectorAll('.griglia-ordini')[0].innerHTML = data.html_non_completati;
+            document.querySelectorAll('.griglia-ordini')[1].innerHTML = data.html_completati;
         })
         .catch(err => console.error("Errore aggiornamento:", err));
 }

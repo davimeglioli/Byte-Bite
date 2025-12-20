@@ -20,28 +20,28 @@
     </header>
 
     <body>
-        <section class="container">
-            <section class="menu">
+        <section class="contenitore">
+            <section class="menu-laterale">
                 <nav>
                     <ul id="categorie-tabs">
                         {% for categoria in categorie %}
-                            <li class="tab" data-categoria="{{ categoria }}">{{ categoria }}</li>
+                            <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
                         {% endfor %}
                     </ul>
                 </nav>
                 
-                <div class="products-container">
+                <div class="contenitore-prodotti">
                     {% for categoria, prodotti in prodotti_per_categoria.items() %}
-                        <div class="products" data-categoria="{{ categoria }}">
+                        <div class="prodotti" data-categoria="{{ categoria }}">
                             {% for prodotto in prodotti %}
                                 {% if prodotto["disponibile"] and prodotto["quantita"]|int > 0 %}
-                                    <div class="product" data-id="{{ prodotto['id'] }}" data-prezzo="{{ prodotto['prezzo'] }}" data-quantita="{{ prodotto['quantita'] }}">
+                                    <div class="prodotto" data-id="{{ prodotto['id'] }}" data-prezzo="{{ prodotto['prezzo'] }}" data-quantita="{{ prodotto['quantita'] }}">
                                         <h4>{{ prodotto["nome"] }}</h4>
                                         <p>€{{ "%.2f"|format(prodotto["prezzo"]) }}</p>
-                                        <div class="quantity">
-                                            <button class="btn-minus">-</button>
+                                        <div class="selettore-quantita">
+                                            <button class="tasto-meno">-</button>
                                             <p>0</p>
-                                            <button class="btn-plus">+</button>
+                                            <button class="tasto-piu">+</button>
                                         </div>
                                     </div>
                                 {% endif %}
@@ -51,8 +51,8 @@
                 </div>
             </section>
 
-            <section class="summary">
-                <div class="title">
+            <section class="riepilogo-carrello">
+                <div class="titolo-sezione">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
                         <circle cx="8" cy="8" r="8"/>
                     </svg>
@@ -60,35 +60,35 @@
                 </div>
         
                 <form action="{{url_for('aggiungi_ordine')}}" method="POST">
-                    <input type="checkbox" id="isTakeaway" name="isTakeaway">
-                    <label for="isTakeaway">Ordine da Asporto</label> <br />
+                    <input type="checkbox" id="checkbox-asporto" name="isTakeaway">
+                    <label for="checkbox-asporto">Ordine da Asporto</label> <br />
 
-                    <label for="customer-name">Nome Cliente</label> <br />
-                    <hr class="divider">
-                    <input type="text" id="customer-name" name="nome_cliente" class="input-text" required> <br />
+                    <label for="nome-cliente">Nome Cliente</label> <br />
+                    <hr class="divisore">
+                    <input type="text" id="nome-cliente" name="nome_cliente" class="input-testo" required> <br />
                     
-                    <div class="field-wrapper" id="tavolo-wrapper">
-                        <label for="customer-table">Numero Tavolo</label> <br />
-                        <hr class="divider">
-                        <input type="number" id="customer-table" name="numero_tavolo" class="input-text" min="1" max="80" required> <br />
+                    <div class="contenitore-campo" id="contenitore-tavolo">
+                        <label for="numero-tavolo">Numero Tavolo</label> <br />
+                        <hr class="divisore">
+                        <input type="number" id="numero-tavolo" name="numero_tavolo" class="input-testo" min="1" max="80" required> <br />
                     </div>
 
-                    <div class="field-wrapper" id="persone-wrapper">
-                        <label for="customer-people">Numero Persone</label> <br />
-                        <hr class="divider">
-                        <input type="number" id="customer-people" name="numero_persone" class="input-text" min="1" required> <br />
+                    <div class="contenitore-campo" id="contenitore-persone">
+                        <label for="numero-persone">Numero Persone</label> <br />
+                        <hr class="divisore">
+                        <input type="number" id="numero-persone" name="numero_persone" class="input-testo" min="1" required> <br />
                     </div>
 
-                    <label for="payment-method">Metodo di Pagamento</label> <br />
-                    <hr class="divider">
-                    <select name="metodo_pagamento" id="payment-method" required>
+                    <label for="metodo-pagamento">Metodo di Pagamento</label> <br />
+                    <hr class="divisore">
+                    <select name="metodo_pagamento" id="metodo-pagamento" required>
                         <option value="Carta">Carta</option>
                         <option value="Contanti">Contanti</option>
                     </select>
 
-                    <div class="order-summary"></div>
+                    <div class="contenitore-lista-ordine"></div>
 
-                    <div class="total">
+                    <div class="totale-carrello">
                         <h2>Totale:</h2>
                         <h2>€0.00</h2>
                     </div>
@@ -96,7 +96,7 @@
                     <!-- Campo nascosto per inviare i prodotti selezionati -->
                     <input type="hidden" name="prodotti" id="prodotti-json">
 
-                    <button class="btn-submit">Invia Ordine</button>
+                    <button class="tasto-conferma-ordine">Invia Ordine</button>
                 </form>
             </section>
         </section>

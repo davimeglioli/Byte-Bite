@@ -1,25 +1,25 @@
 {% for ordine in ordini %}
-<div class="order-card {% if completati %}completed{% endif %}" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
-    <h2 class="order-title">{{ ordine['nome_cliente'] }}</h2>
-    <div class="order-info">
+<div class="scheda-ordine {% if completati %}completato{% endif %}" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
+    <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
+    <div class="info-ordine">
         <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
         <div>{{ ordine['data_ordine'][11:16] }}</div>
         <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
     </div>
-    <div class="order-divider"></div>
+    <div class="{% if completati %}divisore-ordine-completato{% else %}divisore-ordine{% endif %}"></div>
 
-    <div class="order-items-container">
+    <div class="lista-articoli-ordine">
         {% for prodotto in ordine['prodotti'] %}
-        <div class="order-item">
+        <div class="riga-articolo-ordine">
             <span>{{ prodotto['nome'] }}</span>
-            <span class="order-qty">x{{ prodotto['quantita'] }}</span>
+            <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
         </div>
         {% endfor %}
     </div>
 
     {% if not completati %}
-    <div class="order-status">
-        <button class="order-btn"
+    <div class="stato-ordine">
+        <button class="tasto-azione-ordine"
                 data-status="{{ ordine['stato'] }}"
                 data-id="{{ ordine['id'] }}"
                 data-categoria="{{ category }}"

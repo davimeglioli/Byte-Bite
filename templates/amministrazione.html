@@ -20,83 +20,241 @@
     </header>
 
     <body class="amministrazione">
-        <section class="recap">
-            <div class="recap-card">
-                <div class="label">
+        <section class="contenitore-statistiche">
+            <div class="scheda-statistica">
+                <div class="etichetta-statistica">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Ordini Totali</span>
+                    <span class="testo-etichetta">Ordini Totali</span>
                 </div>
-                <div class="value">0</div>
+                <div class="valore-statistica">0</div>
             </div>
 
-            <div class="recap-card">
-                <div class="label">
+            <div class="scheda-statistica">
+                <div class="etichetta-statistica">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Ordini Completati</span>
+                    <span class="testo-etichetta">Ordini Completati</span>
                 </div>
-                <div class="value">0</div>
+                <div class="valore-statistica">0</div>
             </div>
 
-            <div class="recap-card">
-                <div class="label">
+            <div class="scheda-statistica">
+                <div class="etichetta-statistica">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Guadagno Totale</span>
+                    <span class="testo-etichetta">Guadagno Totale</span>
                 </div>
-                <div class="value">0</div>
+                <div class="valore-statistica">0</div>
             </div>
 
-            <div class="recap-card">
-                <div class="label">
+            <div class="scheda-statistica">
+                <div class="etichetta-statistica">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Guadagno Carta</span>
+                    <span class="testo-etichetta">Guadagno Carta</span>
                 </div>
-                <div class="value">0</div>
+                <div class="valore-statistica">0</div>
             </div>
 
-            <div class="recap-card">
-                <div class="label">
+            <div class="scheda-statistica">
+                <div class="etichetta-statistica">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
                         <circle cx="6" cy="6" r="6"/>
                     </svg>
-                    <span class="label-text">Guadagno Contanti</span>
+                    <span class="testo-etichetta">Guadagno Contanti</span>
                 </div>
-                <div class="value">0</div>
+                <div class="valore-statistica">0</div>
             </div>
         </section>
 
-        <section class="grafici">
+        <section class="contenitore-grafici">
 
-            <div class="grafico-card">
+            <div class="scheda-grafico">
                 <h3>Ordini per categoria</h3>
                 <canvas id="grafico1"></canvas>
             </div>
 
-            <div class="grafico-card">
+            <div class="scheda-grafico">
                 <h3>Andamento ordini per ora</h3>
                 <canvas id="grafico2"></canvas>
             </div>
 
-            <div class="grafico-card">
+            <div class="scheda-grafico">
                 <h3>Stato ordini</h3>
                 <canvas id="grafico3"></canvas>
             </div>
 
-            <div class="grafico-card">
+            <div class="scheda-grafico">
                 <h3>Prodotti più venduti</h3>
                 <canvas id="grafico4"></canvas>
             </div>
 
         </section>
 
+        <section class="sezione-tabella">
+            <div class="contenitore-tabella">
+                <div class="intestazione-tabella">
+                    <div class="pallino-stato"></div>
+                    <h3>Dettaglio ordini</h3>
+                </div>
+                <div class="contenitore-tabella-ordini">
+                    <table class="tabella-ordini">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Tavolo</th>
+                                <th>Persone</th>
+                                <th>Data</th>
+                                <th>Metodo Pagamento</th>
+                                <th>Totale</th>
+                                <th>Azioni</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% include 'partials/_amministrazione_ordini_rows.html' %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="sezione-tabella">
+            <div class="contenitore-tabella">
+                <div class="intestazione-tabella">
+                    <div class="pallino-stato"></div>
+                    <h3>Dettaglio prodotti</h3>
+                </div>
+
+                <nav class="contenitore-menu">
+                    <ul id="categorie-tabs">
+                        {% for categoria in categorie %}
+                            <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+                
+                <div class="contenitore-tabella-ordini">
+                    <table class="tabella-ordini">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Categoria Dashboard</th>
+                                <th>Prezzo</th>
+                                <th>Disponibilità</th>
+                                <th>Quantità</th>
+                                <th>Venduti</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% include 'partials/_amministrazione_prodotti_rows.html' %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
 
         <script src="{{ url_for('static', filename='js/amministrazione.js') }}"></script>
-    </body>
+
+    <!-- MODALE RIFORNIMENTO -->
+    <div class="modale-overlay" id="modaleRifornimento">
+        <div class="modale-finestra">
+            <h3 class="modale-titolo">Rifornisci Prodotto</h3>
+            <p class="modale-testo">Quante unità vuoi aggiungere a <br><strong id="nomeProdottoTarget">...</strong>?</p>
+            
+            <form id="formRifornimento">
+                <input type="hidden" id="idProdottoTarget" name="id_prodotto">
+                <input type="number" id="quantitaInput" class="modale-input" placeholder="0" min="1" required>
+                
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-annulla" id="btnAnnulla">Annulla</button>
+                    <button type="submit" class="btn-modale btn-conferma">Conferma</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- MODALE MODIFICA PRODOTTO -->
+    <div class="modale-overlay" id="modaleModifica">
+        <div class="modale-finestra">
+            <h3 class="modale-titolo">Modifica Prodotto</h3>
+            
+            <form id="formModifica">
+                <input type="hidden" id="idProdottoModifica" name="id_prodotto">
+                
+                <!-- Nome -->
+                <div class="campo-form">
+                    <label class="etichetta">Nome Prodotto</label>
+                    <input type="text" id="nomeProdottoModifica" class="input-form" required>
+                </div>
+
+                <!-- Categoria Dashboard -->
+                <div class="campo-form">
+                    <label class="etichetta">Categoria Dashboard</label>
+                    <select id="categoriaDashboardModifica" class="input-form">
+                        <option value="Bar">Bar</option>
+                        <option value="Cucina">Cucina</option>
+                        <option value="Griglia">Griglia</option>
+                        <option value="Gnoccheria">Gnoccheria</option>
+                    </select>
+                </div>
+
+                <!-- Quantità -->
+                <div class="campo-form">
+                    <label class="etichetta">Quantità</label>
+                    <input type="number" id="quantitaProdottoModifica" class="input-form" min="0" required>
+                </div>
+
+                <!-- Disponibilità Toggle -->
+                <div class="campo-form">
+                    <label class="etichetta">Disponibilità</label>
+                    <div class="toggle-container">
+                        <span class="stato-label" id="labelStatoModifica">Disponibile</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleDisponibilitaModifica">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaModifica">Annulla</button>
+                    <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE ELIMINAZIONE PRODOTTO -->
+    <div class="modale-overlay" id="modaleElimina">
+        <div class="modale-finestra">
+            <div class="icona-attenzione">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </div>
+            <h3 class="modale-titolo">Sei sicuro?</h3>
+            <p class="modale-testo">
+                Vuoi davvero eliminare <strong id="nomeProdottoElimina">...</strong> dal menu? <br>
+                Questa azione è irreversibile.
+            </p>
+            <input type="hidden" id="idProdottoElimina">
+            
+            <div class="modale-azioni">
+                <button type="button" class="btn-modale btn-annulla" id="btnAnnullaElimina">Annulla</button>
+                <button type="button" class="btn-modale btn-elimina" id="btnConfermaElimina">Sì, elimina</button>
+            </div>
+        </div>
+    </div>
+</body>
 </html>
