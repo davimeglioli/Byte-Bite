@@ -550,4 +550,345 @@ document.addEventListener("DOMContentLoaded", async () => {
             chiudiModaleModificaOrdine();
         });
     }
+
+    // --- GESTIONE MODALE AGGIUNTA PRODOTTO ---
+    const modaleAggiunta = document.getElementById('modaleAggiunta');
+    const formAggiunta = document.getElementById('formAggiunta');
+    const btnAnnullaAggiunta = document.getElementById('btnAnnullaAggiunta');
+    
+    // Inputs
+    const nomeProdottoAggiunta = document.getElementById('nomeProdottoAggiunta');
+    const categoriaDashboardAggiunta = document.getElementById('categoriaDashboardAggiunta');
+    const categoriaMenuAggiunta = document.getElementById('categoriaMenuAggiunta');
+    const prezzoProdottoAggiunta = document.getElementById('prezzoProdottoAggiunta');
+    const quantitaProdottoAggiunta = document.getElementById('quantitaProdottoAggiunta');
+    const toggleDisponibilitaAggiunta = document.getElementById('toggleDisponibilitaAggiunta');
+    const labelStatoAggiunta = document.getElementById('labelStatoAggiunta');
+
+    // Aggiorna label switch
+    function aggiornaLabelStatoAggiunta() {
+        if (!labelStatoAggiunta || !toggleDisponibilitaAggiunta) return;
+        const disponibile = toggleDisponibilitaAggiunta.checked;
+        labelStatoAggiunta.textContent = disponibile ? "Disponibile" : "Non disponibile";
+        
+        if (disponibile) {
+            labelStatoAggiunta.classList.add("testo-attivo");
+            labelStatoAggiunta.classList.remove("testo-inattivo");
+        } else {
+            labelStatoAggiunta.classList.add("testo-inattivo");
+            labelStatoAggiunta.classList.remove("testo-attivo");
+        }
+    }
+
+    if (toggleDisponibilitaAggiunta) {
+        toggleDisponibilitaAggiunta.addEventListener('change', aggiornaLabelStatoAggiunta);
+    }
+
+    // Auto-switch disponibilità in base alla quantità
+    if (quantitaProdottoAggiunta) {
+        quantitaProdottoAggiunta.addEventListener('input', () => {
+            const qta = parseInt(quantitaProdottoAggiunta.value) || 0;
+            if (qta === 0) {
+                toggleDisponibilitaAggiunta.checked = false;
+            } else if (qta > 0) {
+                toggleDisponibilitaAggiunta.checked = true;
+            }
+            aggiornaLabelStatoAggiunta();
+        });
+    }
+
+    window.apriModaleAggiunta = function() {
+        if (!modaleAggiunta) return;
+        
+        // Reset form
+        formAggiunta.reset();
+        // Default: disponibile
+        if (toggleDisponibilitaAggiunta) toggleDisponibilitaAggiunta.checked = true;
+        aggiornaLabelStatoAggiunta();
+        
+        modaleAggiunta.classList.add('attivo');
+    };
+
+    function chiudiModaleAggiunta() {
+        if (modaleAggiunta) modaleAggiunta.classList.remove('attivo');
+    }
+
+    if (btnAnnullaAggiunta) {
+        btnAnnullaAggiunta.addEventListener('click', chiudiModaleAggiunta);
+    }
+
+    if (modaleAggiunta) {
+        modaleAggiunta.addEventListener('click', (e) => {
+            if (e.target === modaleAggiunta) chiudiModaleAggiunta();
+        });
+    }
+
+    if (formAggiunta) {
+        formAggiunta.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const payload = {
+                nome: nomeProdottoAggiunta.value,
+                categoria_dashboard: categoriaDashboardAggiunta.value,
+                categoria_menu: categoriaMenuAggiunta.value,
+                prezzo: parseFloat(prezzoProdottoAggiunta.value),
+                quantita: parseInt(quantitaProdottoAggiunta.value),
+                disponibile: toggleDisponibilitaAggiunta.checked
+            };
+
+            try {
+                const response = await fetch('/api/aggiungi_prodotto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    // Ricarica gestita da socket
+                } else {
+                    const err = await response.json();
+                    alert('Errore: ' + (err.errore || 'Impossibile aggiungere prodotto'));
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+
+            chiudiModaleAggiunta();
+        });
+    }
+
+    // --- GESTIONE MODALE MODIFICA UTENTE ---
+    const modaleModificaUtente = document.getElementById('modaleModificaUtente');
+    const formModificaUtente = document.getElementById('formModificaUtente');
+    const btnAnnullaModificaUtente = document.getElementById('btnAnnullaModificaUtente');
+    
+    // Inputs
+    const idUtenteModifica = document.getElementById('idUtenteModifica');
+    const usernameModifica = document.getElementById('usernameModifica');
+    const passwordModifica = document.getElementById('passwordModifica');
+    const isAdminModifica = document.getElementById('isAdminModifica');
+    const isAttivoModifica = document.getElementById('isAttivoModifica');
+
+    window.apriModaleModificaUtente = function(btn) {
+        const id = btn.getAttribute('data-id');
+        const username = btn.getAttribute('data-username');
+        const isAdmin = btn.getAttribute('data-is-admin') === '1';
+        const isAttivo = btn.getAttribute('data-attivo') === '1';
+        const permessiStr = btn.getAttribute('data-permessi') || '';
+        const permessi = permessiStr.split(',');
+
+        if (idUtenteModifica) idUtenteModifica.value = id;
+        if (usernameModifica) usernameModifica.value = username;
+        if (passwordModifica) passwordModifica.value = ''; // Reset password
+        
+        if (isAdminModifica) {
+            isAdminModifica.checked = isAdmin;
+            // Trigger change event to update label style
+            isAdminModifica.dispatchEvent(new Event('change'));
+        }
+        
+        if (isAttivoModifica) {
+            isAttivoModifica.checked = isAttivo;
+            // Trigger change event
+            isAttivoModifica.dispatchEvent(new Event('change'));
+        }
+
+        // Reset and set permissions
+        document.querySelectorAll('input[name="permessi"]').forEach(cb => {
+            cb.checked = permessi.includes(cb.value);
+        });
+
+        if (modaleModificaUtente) modaleModificaUtente.classList.add('attivo');
+    };
+
+    window.chiudiModaleModificaUtente = function() {
+        if (modaleModificaUtente) modaleModificaUtente.classList.remove('attivo');
+    };
+
+    if (btnAnnullaModificaUtente) {
+        btnAnnullaModificaUtente.addEventListener('click', chiudiModaleModificaUtente);
+    }
+
+    if (modaleModificaUtente) {
+        modaleModificaUtente.addEventListener('click', (e) => {
+            if (e.target === modaleModificaUtente) chiudiModaleModificaUtente();
+        });
+    }
+
+    if (formModificaUtente) {
+        formModificaUtente.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const permessiSelezionati = Array.from(document.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
+
+            const data = {
+                id_utente: idUtenteModifica.value,
+                username: usernameModifica.value,
+                password: passwordModifica.value, // Can be empty
+                is_admin: isAdminModifica.checked,
+                attivo: isAttivoModifica.checked,
+                permessi: permessiSelezionati
+            };
+
+            try {
+                const response = await fetch('/api/modifica_utente', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    // Reload page to show changes
+                    window.location.reload(); 
+                } else {
+                    const err = await response.json();
+                    alert('Errore: ' + (err.errore || 'Impossibile modificare utente'));
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+            
+            chiudiModaleModificaUtente();
+        });
+    }
+
+    // --- GESTIONE MODALE AGGIUNTA UTENTE ---
+    const modaleAggiuntaUtente = document.getElementById('modaleAggiuntaUtente');
+    const formAggiuntaUtente = document.getElementById('formAggiuntaUtente');
+    const btnAnnullaAggiuntaUtente = document.getElementById('btnAnnullaAggiuntaUtente');
+
+    // Inputs
+    const usernameAggiunta = document.getElementById('usernameAggiunta');
+    const passwordAggiunta = document.getElementById('passwordAggiunta');
+    const isAdminAggiunta = document.getElementById('isAdminAggiunta');
+    const isAttivoAggiunta = document.getElementById('isAttivoAggiunta');
+
+    window.apriModaleAggiuntaUtente = function() {
+        if (!modaleAggiuntaUtente) return;
+        
+        // Reset form
+        formAggiuntaUtente.reset();
+        
+        // Default: Utente Standard, Attivo
+        if (isAdminAggiunta) {
+            isAdminAggiunta.checked = false;
+            isAdminAggiunta.dispatchEvent(new Event('change'));
+        }
+        if (isAttivoAggiunta) {
+            isAttivoAggiunta.checked = true;
+            isAttivoAggiunta.dispatchEvent(new Event('change'));
+        }
+
+        modaleAggiuntaUtente.classList.add('attivo');
+    };
+
+    window.chiudiModaleAggiuntaUtente = function() {
+        if (modaleAggiuntaUtente) modaleAggiuntaUtente.classList.remove('attivo');
+    };
+
+    if (btnAnnullaAggiuntaUtente) {
+        btnAnnullaAggiuntaUtente.addEventListener('click', chiudiModaleAggiuntaUtente);
+    }
+
+    if (modaleAggiuntaUtente) {
+        modaleAggiuntaUtente.addEventListener('click', (e) => {
+            if (e.target === modaleAggiuntaUtente) chiudiModaleAggiuntaUtente();
+        });
+    }
+
+    if (formAggiuntaUtente) {
+        formAggiuntaUtente.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Collect checked permissions inside the add modal
+            const permessiSelezionati = Array.from(formAggiuntaUtente.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
+
+            const data = {
+                username: usernameAggiunta.value,
+                password: passwordAggiunta.value,
+                is_admin: isAdminAggiunta.checked,
+                attivo: isAttivoAggiunta.checked,
+                permessi: permessiSelezionati
+            };
+
+            try {
+                const response = await fetch('/api/aggiungi_utente', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await response.json();
+                    alert('Errore: ' + (err.errore || 'Impossibile aggiungere utente'));
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+
+            chiudiModaleAggiuntaUtente();
+        });
+    }
+
+    // --- GESTIONE MODALE ELIMINAZIONE UTENTE ---
+    const modaleEliminaUtente = document.getElementById('modaleEliminaUtente');
+    const usernameElimina = document.getElementById('usernameElimina');
+    const idUtenteElimina = document.getElementById('idUtenteElimina');
+    const btnAnnullaEliminaUtente = document.getElementById('btnAnnullaEliminaUtente');
+    const btnConfermaEliminaUtente = document.getElementById('btnConfermaEliminaUtente');
+
+    window.apriModaleEliminaUtente = function(btn) {
+        const id = btn.getAttribute('data-id');
+        const username = btn.getAttribute('data-username');
+        
+        if (idUtenteElimina) idUtenteElimina.value = id;
+        if (usernameElimina) usernameElimina.textContent = username;
+        
+        if (modaleEliminaUtente) modaleEliminaUtente.classList.add('attivo');
+    };
+
+    window.chiudiModaleEliminaUtente = function() {
+        if (modaleEliminaUtente) modaleEliminaUtente.classList.remove('attivo');
+    };
+
+    if (btnAnnullaEliminaUtente) {
+        btnAnnullaEliminaUtente.addEventListener('click', chiudiModaleEliminaUtente);
+    }
+    
+    if (modaleEliminaUtente) {
+        modaleEliminaUtente.addEventListener('click', (e) => {
+            if (e.target === modaleEliminaUtente) chiudiModaleEliminaUtente();
+        });
+    }
+
+    if (btnConfermaEliminaUtente) {
+        btnConfermaEliminaUtente.addEventListener('click', async () => {
+            const id = idUtenteElimina ? idUtenteElimina.value : null;
+            if (!id) return;
+
+            try {
+                const response = await fetch('/api/elimina_utente', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_utente: id })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await response.json();
+                    alert('Errore: ' + (err.errore || 'Impossibile eliminare utente'));
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+            chiudiModaleEliminaUtente();
+        });
+    }
 });

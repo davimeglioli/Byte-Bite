@@ -1517,3 +1517,84 @@ input:checked ~ .stato-label {
 .testo-inattivo {
     color: #666 !important;
 }
+
+/* --- TASTO AGGIUNGI PRODOTTO --- */
+.tasto-aggiungi-header {
+    margin-left: auto;
+}
+
+/* --- STILI PERSONALIZZATI PER CHECKBOX (Nuovi) --- */
+.permessi-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding-left: 32px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+    color: #333;
+    background-color: #F9F9F9;
+    padding: 10px 15px 10px 35px; /* Spazio per la check a sinistra */
+    border-radius: 10px;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+}
+
+.checkbox-container:hover {
+    background-color: #f0f0f0;
+    border-color: #ddd;
+}
+
+.checkbox-container input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 20px;
+    width: 20px;
+    background-color: #fff;
+    border-radius: 6px;
+    border: 2px solid #ccc;
+    transition: all 0.2s;
+}
+
+.checkbox-container input:checked ~ .checkmark {
+    background-color: #FF006E;
+    border-color: #FF006E;
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+.checkbox-container input:checked ~ .checkmark:after {
+    display: block;
+}
+
+.checkbox-container .checkmark:after {
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}

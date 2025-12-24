@@ -1,5 +1,5 @@
 {% for prodotto in prodotti %}
-<tr data-categoria="{{ prodotto['categoria_menu'] }}">
+<tr data-categoria="{{ prodotto['categoria_menu'] }}" class="{% if prima_categoria and prodotto['categoria_menu'] != prima_categoria %}nascosto{% endif %}">
     <td>{{ prodotto['id'] }}</td>
     <td>{{ prodotto['nome'] }}</td>
     <td>{{ prodotto['categoria_dashboard'] }}</td>

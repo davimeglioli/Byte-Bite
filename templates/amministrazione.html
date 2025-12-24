@@ -146,7 +146,7 @@
                 <div class="intestazione-tabella">
                     <div class="pallino-stato"></div>
                     <h3>Dettaglio prodotti</h3>
-                    <button class="bottone-rifornimento tasto-aggiungi-header">+</button>
+                    <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiunta()">+</button>
                 </div>
 
                 <nav class="contenitore-menu">
@@ -173,6 +173,36 @@
                         </thead>
                         <tbody>
                             {% include 'partials/_amministrazione_prodotti_rows.html' %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="sezione-tabella">
+            <div class="contenitore-tabella">
+                <div class="intestazione-tabella">
+                    <div class="pallino-stato"></div>
+                    <h3>Dettaglio utenti</h3>
+                    <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiuntaUtente()">+</button>
+                </div>
+                
+                <div class="contenitore-tabella-ordini">
+                    <table class="tabella-ordini">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Ruolo</th>
+                                <th>Stato</th>
+                                <th>Amministrazione</th>
+                                <th>Cassa</th>
+                                <th>Dashboard</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% include 'partials/_amministrazione_utenti_rows.html' %}
                         </tbody>
                     </table>
                 </div>
@@ -337,6 +367,247 @@
                     <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
                 </div>
             </form>
+        </div>
+    </div>
+    <!-- MODALE AGGIUNTA PRODOTTO -->
+    <div class="modale-overlay" id="modaleAggiunta">
+        <div class="modale-finestra">
+            <h3 class="modale-titolo">Aggiungi Nuovo Prodotto</h3>
+            
+            <form id="formAggiunta">
+                
+                <!-- Nome -->
+                <div class="campo-form">
+                    <label class="etichetta">Nome Prodotto</label>
+                    <input type="text" id="nomeProdottoAggiunta" class="input-form" required placeholder="Es. Pasta al Pomodoro">
+                </div>
+
+                <!-- Categoria Dashboard -->
+                <div class="campo-form">
+                    <label class="etichetta">Categoria Dashboard</label>
+                    <select id="categoriaDashboardAggiunta" class="input-form">
+                        <option value="Bar">Bar</option>
+                        <option value="Cucina">Cucina</option>
+                        <option value="Griglia">Griglia</option>
+                        <option value="Gnoccheria">Gnoccheria</option>
+                    </select>
+                </div>
+
+                <!-- Categoria Menu -->
+                <div class="campo-form">
+                    <label class="etichetta">Categoria Menu</label>
+                    <select id="categoriaMenuAggiunta" class="input-form">
+                        <option value="Aperitivi">Aperitivi</option>
+                        <option value="Paella">Paella</option>
+                        <option value="Primi">Primi</option>
+                        <option value="Secondi">Secondi</option>
+                        <option value="Gnocco e Tigelle">Gnocco e Tigelle</option>
+                        <option value="Da Bere">Da Bere</option>
+                        <option value="Dolci">Dolci</option>
+                        <option value="Long Drink">Long Drink</option>
+                    </select>
+                </div>
+
+                <!-- Prezzo e Quantità -->
+                <div style="display: flex; gap: 15px;">
+                    <div class="campo-form" style="flex: 1;">
+                        <label class="etichetta">Prezzo (€)</label>
+                        <input type="number" id="prezzoProdottoAggiunta" class="input-form" min="0" step="0.01" required placeholder="0.00">
+                    </div>
+                    <div class="campo-form" style="flex: 1;">
+                        <label class="etichetta">Quantità</label>
+                        <input type="number" id="quantitaProdottoAggiunta" class="input-form" min="0" required placeholder="0">
+                    </div>
+                </div>
+
+                <!-- Disponibilità Toggle -->
+                <div class="campo-form">
+                    <label class="etichetta">Disponibilità</label>
+                    <div class="toggle-container">
+                        <span class="stato-label" id="labelStatoAggiunta">Disponibile</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleDisponibilitaAggiunta" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaAggiunta">Annulla</button>
+                    <button type="submit" class="btn-modale btn-conferma">Aggiungi Prodotto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE MODIFICA UTENTE -->
+    <div class="modale-overlay" id="modaleModificaUtente">
+        <div class="modale-finestra">
+            <h3 class="modale-titolo">Modifica Utente</h3>
+            
+            <form id="formModificaUtente">
+                <input type="hidden" id="idUtenteModifica" name="id_utente">
+                
+                <!-- Username -->
+                <div class="campo-form">
+                    <label class="etichetta">Username</label>
+                    <input type="text" id="usernameModifica" class="input-form" required>
+                </div>
+
+                <!-- Password -->
+                <div class="campo-form">
+                    <label class="etichetta">Nuova Password <span style="font-weight:400; font-size: 12px; color:#888;">(opzionale)</span></label>
+                    <input type="password" id="passwordModifica" class="input-form" placeholder="••••••••">
+                </div>
+
+                <!-- Ruolo (Toggle) -->
+                <div class="campo-form">
+                    <label class="etichetta">Ruolo Amministratore</label>
+                    <div class="toggle-container">
+                        <span class="stato-label">Utente Standard</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isAdminModifica" onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Amministratore' : 'Utente Standard'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Stato (Toggle) -->
+                <div class="campo-form">
+                    <label class="etichetta">Stato Account</label>
+                    <div class="toggle-container">
+                        <span class="stato-label" style="color: #FF006E;">Attivo</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isAttivoModifica" checked onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Attivo' : 'Sospeso'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Permessi (Checkbox Grid) -->
+                <div class="campo-form">
+                    <label class="etichetta">Permessi Accesso</label>
+                    <div class="permessi-grid">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="AMMINISTRAZIONE">
+                            <span class="checkmark"></span>
+                            Amministrazione
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="CASSA">
+                            <span class="checkmark"></span>
+                            Cassa
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="DASHBOARD">
+                            <span class="checkmark"></span>
+                            Dashboard
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaModificaUtente">Annulla</button>
+                    <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE AGGIUNTA UTENTE -->
+    <div class="modale-overlay" id="modaleAggiuntaUtente">
+        <div class="modale-finestra">
+            <h3 class="modale-titolo">Aggiungi Nuovo Utente</h3>
+            
+            <form id="formAggiuntaUtente">
+                
+                <!-- Username -->
+                <div class="campo-form">
+                    <label class="etichetta">Username</label>
+                    <input type="text" id="usernameAggiunta" class="input-form" required placeholder="Es. MarioRossi">
+                </div>
+
+                <!-- Password -->
+                <div class="campo-form">
+                    <label class="etichetta">Password</label>
+                    <input type="password" id="passwordAggiunta" class="input-form" required placeholder="••••••••">
+                </div>
+
+                <!-- Ruolo (Toggle) -->
+                <div class="campo-form">
+                    <label class="etichetta">Ruolo Amministratore</label>
+                    <div class="toggle-container">
+                        <span class="stato-label">Utente Standard</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isAdminAggiunta" onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Amministratore' : 'Utente Standard'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Stato (Toggle) -->
+                <div class="campo-form">
+                    <label class="etichetta">Stato Account</label>
+                    <div class="toggle-container">
+                        <span class="stato-label" style="color: #FF006E;">Attivo</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="isAttivoAggiunta" checked onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Attivo' : 'Sospeso'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Permessi (Checkbox Grid) -->
+                <div class="campo-form">
+                    <label class="etichetta">Permessi Accesso</label>
+                    <div class="permessi-grid">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="AMMINISTRAZIONE">
+                            <span class="checkmark"></span>
+                            Amministrazione
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="CASSA">
+                            <span class="checkmark"></span>
+                            Cassa
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="permessi" value="DASHBOARD">
+                            <span class="checkmark"></span>
+                            Dashboard
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaAggiuntaUtente">Annulla</button>
+                    <button type="submit" class="btn-modale btn-conferma">Aggiungi Utente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE ELIMINAZIONE UTENTE -->
+    <div class="modale-overlay" id="modaleEliminaUtente">
+        <div class="modale-finestra">
+            <div class="icona-attenzione">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </div>
+            <h3 class="modale-titolo">Elimina Utente</h3>
+            <p class="modale-testo">
+                Vuoi davvero eliminare l'utente <strong id="usernameElimina">...</strong>? <br>
+                Questa azione è irreversibile e rimuoverà l'accesso al sistema.
+            </p>
+            <input type="hidden" id="idUtenteElimina">
+            
+            <div class="modale-azioni">
+                <button type="button" class="btn-modale btn-annulla" id="btnAnnullaEliminaUtente">Annulla</button>
+                <button type="button" class="btn-modale btn-elimina" id="btnConfermaEliminaUtente">Sì, elimina</button>
+            </div>
         </div>
     </div>
 </body>

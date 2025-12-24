@@ -13,8 +13,13 @@ timer_attivi = {}
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('403.html'), 403
+
 socketio = SocketIO(
     app,
+    async_mode='threading',
     cors_allowed_origins="*",
     ping_timeout=60,      # Quanto tempo il server aspetta un PONG
     ping_interval=25,     # Ogni quanto manda un PING
@@ -600,12 +605,24 @@ def amministrazione():
 
     categorie_db = esegui_query("SELECT DISTINCT categoria_menu FROM prodotti")
     categorie = [riga["categoria_menu"] for riga in categorie_db]
+    prima_categoria = categorie[0] if categorie else None
+
+    # Recupero utenti e permessi
+    utenti_db = esegui_query("SELECT id, username, is_admin, attivo FROM utenti ORDER BY username")
+    utenti = []
+    for riga in utenti_db:
+        u = dict(riga)
+        permessi_db = esegui_query("SELECT pagina FROM permessi_pagine WHERE utente_id = ?", (u["id"],))
+        u["permessi"] = [p["pagina"] for p in permessi_db]
+        utenti.append(u)
 
     return render_template(
         "amministrazione.html",
         ordini=ordini,
         prodotti=prodotti,
-        categorie=categorie
+        utenti=utenti,
+        categorie=categorie,
+        prima_categoria=prima_categoria
     )
 
 @app.route('/api/statistiche/')
@@ -733,11 +750,6 @@ def modifica_prodotto():
         quantita = int(data['quantita'])
         disponibile = 1 if quantita > 0 else 0
         
-        # Se l'utente ha esplicitamente disattivato la disponibilità anche con quantità > 0 (opzionale, ma sicuro)
-        # In questo caso seguiamo la logica richiesta: la quantità comanda lo stato.
-        # Se vuoi che l'utente possa avere Qta > 0 ma Disponibile = False, rimuovi la riga sopra e usa data['disponibile']
-        # Ma per ora implemento la richiesta "passa a disponibile in auto"
-        
         esegui_query("""
             UPDATE prodotti 
             SET nome = ?, categoria_dashboard = ?, quantita = ?, disponibile = ?
@@ -754,6 +766,39 @@ def modifica_prodotto():
     except Exception as e:
         print(f"Errore modifica prodotto: {e}")
         return jsonify({"errore": "Errore durante la modifica"}), 500
+
+@app.route('/api/aggiungi_prodotto', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def aggiungi_prodotto():
+    data = request.get_json()
+    
+    try:
+        nome = data.get('nome')
+        categoria_dashboard = data.get('categoria_dashboard')
+        categoria_menu = data.get('categoria_menu')
+        prezzo = float(data.get('prezzo', 0))
+        quantita = int(data.get('quantita', 0))
+        disponibile = 1 if data.get('disponibile') else 0
+        
+        # Validazione base
+        if not nome or not categoria_dashboard or not categoria_menu:
+            return jsonify({"errore": "Dati mancanti"}), 400
+            
+        # Logica automatica disponibilità (se quantità > 0, forza disponibile)
+        if quantita > 0:
+            disponibile = 1
+            
+        esegui_query("""
+            INSERT INTO prodotti (nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile, venduti)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+        """, (nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile), commit=True)
+        
+        socketio.start_background_task(ricalcola_statistiche)
+        return jsonify({"messaggio": "Prodotto aggiunto con successo"})
+    except Exception as e:
+        print(f"Errore aggiunta prodotto: {e}")
+        return jsonify({"errore": "Errore durante l'aggiunta"}), 500
 
 @app.route('/api/elimina_prodotto', methods=['POST'])
 @accesso_richiesto
@@ -854,6 +899,134 @@ def modifica_ordine():
     except Exception as e:
         print(f"Errore modifica ordine: {e}")
         return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
+
+@app.route('/api/aggiungi_utente', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def aggiungi_utente():
+    data = request.get_json()
+    
+    username = data.get('username')
+    password = data.get('password')
+    is_admin = 1 if data.get('is_admin') else 0
+    attivo = 1 if data.get('attivo') else 0
+    permessi = data.get('permessi', [])
+
+    if not username or not password:
+        return jsonify({"errore": "Username e password obbligatori"}), 400
+
+    try:
+        with ottieni_db() as connessione:
+            cursore = connessione.cursor()
+
+            # Verifica esistenza username
+            cursore.execute("SELECT id FROM utenti WHERE username = ?", (username,))
+            if cursore.fetchone():
+                return jsonify({"errore": "Username già in uso"}), 400
+
+            # Hash password
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+            # Inserisci utente
+            cursore.execute("""
+                INSERT INTO utenti (username, password_hash, is_admin, attivo)
+                VALUES (?, ?, ?, ?)
+            """, (username, password_hash, is_admin, attivo))
+            
+            id_utente = cursore.lastrowid
+
+            # Inserisci permessi
+            for pagina in permessi:
+                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)", (id_utente, pagina))
+            
+            connessione.commit()
+
+        return jsonify({"messaggio": "Utente creato con successo"})
+    except Exception as e:
+        print(f"Errore aggiunta utente: {e}")
+        return jsonify({"errore": "Errore durante la creazione"}), 500
+
+@app.route('/api/modifica_utente', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def modifica_utente():
+    data = request.get_json()
+    id_utente = data.get('id_utente')
+
+    if not id_utente:
+        return jsonify({"errore": "ID utente mancante"}), 400
+
+    try:
+        username = data.get('username')
+        password = data.get('password')
+        is_admin = 1 if data.get('is_admin') else 0
+        attivo = 1 if data.get('attivo') else 0
+        permessi = data.get('permessi', [])
+
+        with ottieni_db() as connessione:
+            cursore = connessione.cursor()
+
+            # Aggiorna utente
+            if password:
+                password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                cursore.execute("""
+                    UPDATE utenti
+                    SET username = ?, password_hash = ?, is_admin = ?, attivo = ?
+                    WHERE id = ?
+                """, (username, password_hash, is_admin, attivo, id_utente))
+            else:
+                cursore.execute("""
+                    UPDATE utenti
+                    SET username = ?, is_admin = ?, attivo = ?
+                    WHERE id = ?
+                """, (username, is_admin, attivo, id_utente))
+
+            # Aggiorna permessi (rimuovi tutti e reinserisci)
+            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = ?", (id_utente,))
+            
+            for pagina in permessi:
+                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)", (id_utente, pagina))
+            
+            connessione.commit()
+
+        return jsonify({"messaggio": "Utente modificato con successo"})
+    except Exception as e:
+        print(f"Errore modifica utente: {e}")
+        return jsonify({"errore": "Errore durante la modifica"}), 500
+
+@app.route('/api/elimina_utente', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def elimina_utente():
+    data = request.get_json()
+    id_utente = data.get('id_utente')
+
+    if not id_utente:
+        return jsonify({"errore": "ID utente mancante"}), 400
+    
+    # Prevenzione auto-eliminazione
+    if 'user_id' in session and str(session['user_id']) == str(id_utente):
+         return jsonify({"errore": "Non puoi eliminare il tuo stesso account"}), 400
+
+    try:
+        with ottieni_db() as connessione:
+            cursore = connessione.cursor()
+            
+            # Verifica esistenza
+            cursore.execute("SELECT id FROM utenti WHERE id = ?", (id_utente,))
+            if not cursore.fetchone():
+                return jsonify({"errore": "Utente non trovato"}), 404
+
+            # Elimina permessi e utente
+            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = ?", (id_utente,))
+            cursore.execute("DELETE FROM utenti WHERE id = ?", (id_utente,))
+            
+            connessione.commit()
+
+        return jsonify({"messaggio": "Utente eliminato con successo"})
+    except Exception as e:
+        print(f"Errore eliminazione utente: {e}")
+        return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 @app.route('/api/ordine/<int:ordine_id>/dettagli')
 @accesso_richiesto
@@ -962,7 +1135,12 @@ def api_amministrazione_prodotti_html():
         FROM prodotti
         ORDER BY categoria_menu;
     """)
-    return render_template('partials/_amministrazione_prodotti_rows.html', prodotti=prodotti)
+    
+    categorie_db = esegui_query("SELECT DISTINCT categoria_menu FROM prodotti ORDER BY categoria_menu")
+    categorie = [riga["categoria_menu"] for riga in categorie_db]
+    prima_categoria = categorie[0] if categorie else None
+
+    return render_template('partials/_amministrazione_prodotti_rows.html', prodotti=prodotti, prima_categoria=prima_categoria)
 
 @app.route('/genera_statistiche/')
 def genera_statistiche():
