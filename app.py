@@ -274,6 +274,9 @@ def ricalcola_statistiche():
         totale_contanti,
         totale_carta
     ), commit=True)
+    
+    # Notifica aggiornamento globale
+    emissione_sicura('aggiorna_dashboard', {})
 
 def cambia_stato_automatico(ordine_id, categoria, timer_id):
     """Gestisce il passaggio automatico allo stato 'Completato' dopo un timeout."""
@@ -545,7 +548,7 @@ def cambia_stato():
             timer_attivi[chiave_timer]["annulla"] = True
             timer_attivi.pop(chiave_timer, None)
 
-        socketio.sleep(0.1)  # Piccolo delay per sicurezza
+        #socketio.sleep(0.1)  # Piccolo delay per sicurezza
         id_timer = str(uuid.uuid4())  # ID univoco per questo timer
         timer_attivi[chiave_timer] = {"annulla": False, "id": id_timer}
         socketio.start_background_task(cambia_stato_automatico, id_ordine, categoria, id_timer)
@@ -715,7 +718,8 @@ def rifornisci_prodotto():
         (id_prodotto,),
         commit=True
     )
-
+    
+    socketio.start_background_task(ricalcola_statistiche)
     return jsonify({"messaggio": "Prodotto rifornito con successo"})
 
 @app.route('/api/modifica_prodotto', methods=['POST'])
@@ -745,6 +749,7 @@ def modifica_prodotto():
             disponibile,
             data['id']
         ), commit=True)
+        socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Prodotto modificato con successo"})
     except Exception as e:
         print(f"Errore modifica prodotto: {e}")
@@ -758,10 +763,136 @@ def elimina_prodotto():
     
     try:
         esegui_query("DELETE FROM prodotti WHERE id = ?", (data['id'],), commit=True)
+        socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Prodotto eliminato con successo"})
     except Exception as e:
         print(f"Errore eliminazione prodotto: {e}")
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
+
+@app.route('/api/elimina_ordine', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def elimina_ordine():
+    data = request.get_json()
+    id_ordine = data.get('id')
+    
+    if not id_ordine:
+        return jsonify({"errore": "ID ordine mancante"}), 400
+
+    try:
+        with ottieni_db() as connessione:
+            cursore = connessione.cursor()
+            
+            # 1. Recupera i prodotti dell'ordine da eliminare
+            cursore.execute("""
+                SELECT prodotto_id, quantita 
+                FROM ordini_prodotti 
+                WHERE ordine_id = ?
+            """, (id_ordine,))
+            prodotti_ordine = cursore.fetchall()
+
+            # 2. Ripristina le quantità nel magazzino e riduci i venduti
+            for p in prodotti_ordine:
+                prodotto_id = p["prodotto_id"]
+                quantita = p["quantita"]
+                
+                cursore.execute("""
+                    UPDATE prodotti 
+                    SET quantita = quantita + ?, venduti = venduti - ?
+                    WHERE id = ?
+                """, (quantita, quantita, prodotto_id))
+
+                # Se la quantità torna > 0, rendi il prodotto disponibile
+                cursore.execute("""
+                    UPDATE prodotti 
+                    SET disponibile = 1 
+                    WHERE id = ? AND quantita > 0
+                """, (prodotto_id,))
+            
+            # 3. Elimina l'ordine
+            cursore.execute("DELETE FROM ordini_prodotti WHERE ordine_id = ?", (id_ordine,))
+            cursore.execute("DELETE FROM ordini WHERE id = ?", (id_ordine,))
+            connessione.commit()
+        
+        socketio.start_background_task(ricalcola_statistiche)
+        return jsonify({"messaggio": "Ordine eliminato con successo"})
+    except Exception as e:
+        print(f"Errore eliminazione ordine: {e}")
+        return jsonify({"errore": "Errore durante l'eliminazione"}), 500
+
+@app.route('/api/modifica_ordine', methods=['POST'])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def modifica_ordine():
+    data = request.get_json()
+    id_ordine = data.get('id_ordine')
+    
+    if not id_ordine:
+        return jsonify({"errore": "ID ordine mancante"}), 400
+
+    try:
+        nome_cliente = data.get('nome_cliente')
+        numero_tavolo = data.get('numero_tavolo')
+        numero_persone = data.get('numero_persone')
+        metodo_pagamento = data.get('metodo_pagamento')
+        
+        # Gestione valori vuoti
+        if numero_tavolo == '':
+            numero_tavolo = None
+        if numero_persone == '':
+            numero_persone = None
+
+        esegui_query("""
+            UPDATE ordini 
+            SET nome_cliente = ?, numero_tavolo = ?, numero_persone = ?, metodo_pagamento = ?
+            WHERE id = ?
+        """, (nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, id_ordine), commit=True)
+        
+        socketio.start_background_task(ricalcola_statistiche)
+        
+        return jsonify({"messaggio": "Ordine aggiornato con successo"})
+    except Exception as e:
+        print(f"Errore modifica ordine: {e}")
+        return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
+
+@app.route('/api/ordine/<int:ordine_id>/dettagli')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def ordine_dettagli(ordine_id):
+    dettagli = esegui_query("""
+        SELECT 
+            p.nome,
+            p.categoria_menu,
+            op.quantita,
+            p.prezzo,
+            (p.prezzo * op.quantita) as subtotale,
+            op.stato
+        FROM ordini_prodotti op
+        JOIN prodotti p ON op.prodotto_id = p.id
+        WHERE op.ordine_id = ?
+    """, (ordine_id,))
+    
+    # Calculate total
+    totale = sum(d['subtotale'] for d in dettagli)
+    
+    return render_template('partials/_ordine_dettagli.html', dettagli=dettagli, totale=totale, ordine_id=ordine_id)
+
+@app.route('/test_expansion')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def test_expansion():
+    # Fetch some orders for testing
+    ordini = esegui_query("""
+        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
+               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
+        FROM ordini o
+        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
+        LEFT JOIN prodotti p ON op.prodotto_id = p.id
+        GROUP BY o.id
+        ORDER BY o.data_ordine DESC
+        LIMIT 5
+    """)
+    return render_template('test_row_expansion.html', ordini=ordini)
 
 @app.route('/api/ordine/<int:id_ordine>')
 def api_ordine(id_ordine):
@@ -813,6 +944,25 @@ def api_amministrazione_ordini_html():
         ORDER BY o.data_ordine DESC
     """)
     return render_template('partials/_amministrazione_ordini_rows.html', ordini=ordini)
+
+@app.route('/api/amministrazione/prodotti_html')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def api_amministrazione_prodotti_html():
+    prodotti = esegui_query("""
+        SELECT 
+            id, 
+            nome, 
+            categoria_dashboard, 
+            categoria_menu,
+            prezzo, 
+            disponibile, 
+            quantita, 
+            venduti 
+        FROM prodotti
+        ORDER BY categoria_menu;
+    """)
+    return render_template('partials/_amministrazione_prodotti_rows.html', prodotti=prodotti)
 
 @app.route('/genera_statistiche/')
 def genera_statistiche():

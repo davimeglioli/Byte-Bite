@@ -95,12 +95,63 @@ async function aggiornaTabellaOrdini() {
     document.querySelector(".tabella-ordini tbody").innerHTML = html;
 }
 
+async function aggiornaTabellaProdotti() {
+    const res = await fetch("/api/amministrazione/prodotti_html");
+    const html = await res.text();
+    // La seconda tabella nella pagina è quella dei prodotti
+    // Usiamo un selettore più specifico basato sulla struttura HTML
+    const tabelle = document.querySelectorAll(".tabella-ordini tbody");
+    if (tabelle.length >= 2) {
+        tabelle[1].innerHTML = html;
+    }
+}
+
+async function toggleDettagli(btn) {
+    const ordineId = btn.getAttribute('data-id');
+    const tr = btn.closest('tr');
+    const nextTr = tr.nextElementSibling;
+    const isExpanded = btn.classList.contains('attivo');
+
+    if (isExpanded) {
+        // Chiudi
+        btn.classList.remove('attivo');
+        if (nextTr && nextTr.classList.contains('riga-dettagli')) {
+            nextTr.remove();
+        }
+    } else {
+        // Espandi
+        // Chiudi eventuali altri dettagli aperti (opzionale, ma mantiene la UI pulita)
+        // document.querySelectorAll('.bottone-espandi.attivo').forEach(b => {
+        //     if (b !== btn) toggleDettagli(b);
+        // });
+
+        btn.classList.add('attivo');
+        
+        // Rimuovi dettagli esistenti se presenti per errore
+        if (nextTr && nextTr.classList.contains('riga-dettagli')) {
+            nextTr.remove();
+        }
+
+        try {
+            const response = await fetch(`/api/ordine/${ordineId}/dettagli`);
+            if (!response.ok) throw new Error('Errore nel caricamento dei dettagli');
+            const html = await response.text();
+            tr.insertAdjacentHTML('afterend', html);
+        } catch (error) {
+            console.error('Errore:', error);
+            alert('Impossibile caricare i dettagli dell\'ordine.');
+            btn.classList.remove('attivo');
+        }
+    }
+}
+
 async function refresh() {
     const stats = await caricaStatistiche();
     aggiornaRecap(stats.totali);
     aggiornaCharts(stats);
     joinRooms(stats.categorie);
     aggiornaTabellaOrdini();
+    aggiornaTabellaProdotti();
 }
 
 function scheduleRefresh() {
@@ -208,8 +259,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
             if (response.ok) {
-                // Ricarica la tabella o aggiorna la UI
-                location.reload(); // Semplice refresh per vedere il nuovo valore
+                // Ricarica gestita da socket
             } else {
                 alert('Errore durante il rifornimento.');
             }
@@ -309,7 +359,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
             if (response.ok) {
-                location.reload();
+                // Ricarica gestita da socket
             } else {
                 alert('Errore durante la modifica.');
             }
@@ -360,7 +410,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
             if (response.ok) {
-                location.reload();
+                // Ricarica gestita da socket
             } else {
                 alert('Errore durante l\'eliminazione.');
             }
@@ -370,4 +420,134 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         chiudiModaleElimina();
     });
+
+    // --- GESTIONE MODALE ELIMINAZIONE ORDINE ---
+    const modaleEliminaOrdine = document.getElementById('modaleEliminaOrdine');
+    const idOrdineElimina = document.getElementById('idOrdineElimina');
+    const idOrdineHidden = document.getElementById('idOrdineHidden');
+    const btnAnnullaEliminaOrdine = document.getElementById('btnAnnullaEliminaOrdine');
+    const btnConfermaEliminaOrdine = document.getElementById('btnConfermaEliminaOrdine');
+
+    window.apriModaleEliminaOrdine = function(btn) {
+        const id = btn.getAttribute('data-id');
+        if (idOrdineHidden) idOrdineHidden.value = id;
+        if (idOrdineElimina) idOrdineElimina.textContent = id;
+        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.add('attivo');
+    };
+
+    function chiudiModaleEliminaOrdine() {
+        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.remove('attivo');
+    }
+
+    if (btnAnnullaEliminaOrdine) {
+        btnAnnullaEliminaOrdine.addEventListener('click', chiudiModaleEliminaOrdine);
+    }
+    
+    if (modaleEliminaOrdine) {
+        modaleEliminaOrdine.addEventListener('click', (e) => {
+            if (e.target === modaleEliminaOrdine) chiudiModaleEliminaOrdine();
+        });
+    }
+
+    if (btnConfermaEliminaOrdine) {
+        btnConfermaEliminaOrdine.addEventListener('click', async () => {
+            const id = idOrdineHidden ? idOrdineHidden.value : null;
+            if (!id) return;
+
+            try {
+                const response = await fetch('/api/elimina_ordine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+
+                if (response.ok) {
+                    // Ricarica gestita da socket
+                } else {
+                    alert('Errore durante l\'eliminazione dell\'ordine.');
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+            chiudiModaleEliminaOrdine();
+        });
+    }
+
+    // --- GESTIONE MODALE MODIFICA ORDINE ---
+    const modaleModificaOrdine = document.getElementById('modaleModificaOrdine');
+    const formModificaOrdine = document.getElementById('formModificaOrdine');
+    
+    // Inputs
+    const idOrdineModifica = document.getElementById('idOrdineModifica');
+    const clienteModifica = document.getElementById('clienteModifica');
+    const tavoloModifica = document.getElementById('tavoloModifica');
+    const personeModifica = document.getElementById('personeModifica');
+    const pagamentoModifica = document.getElementById('pagamentoModifica');
+
+    window.apriModaleModificaOrdine = function(btn) {
+        const tr = btn.closest('tr');
+        const cells = tr.querySelectorAll('td');
+        
+        // Assumo che l'ordine delle colonne sia:
+        // 0: ID, 1: Cliente, 2: Tavolo, 3: Persone, 4: Data, 5: Pagamento, 6: Totale, 7: Azioni, 8: Dettagli
+        
+        const id = tr.getAttribute('data-id');
+        const cliente = cells[1].textContent.trim();
+        const tavolo = cells[2].textContent.trim();
+        const persone = cells[3].textContent.trim();
+        const pagamento = cells[5].textContent.trim();
+
+        if (idOrdineModifica) idOrdineModifica.value = id;
+        if (clienteModifica) clienteModifica.value = cliente;
+        if (tavoloModifica) tavoloModifica.value = (tavolo === '-' || tavolo === '') ? '' : tavolo;
+        if (personeModifica) personeModifica.value = (persone === '-' || persone === '') ? '' : persone;
+        if (pagamentoModifica) pagamentoModifica.value = pagamento;
+
+        if (modaleModificaOrdine) modaleModificaOrdine.classList.add('attivo');
+    };
+
+    window.chiudiModaleModificaOrdine = function() {
+        if (modaleModificaOrdine) modaleModificaOrdine.classList.remove('attivo');
+    };
+
+    if (modaleModificaOrdine) {
+        modaleModificaOrdine.addEventListener('click', (e) => {
+            if (e.target === modaleModificaOrdine) chiudiModaleModificaOrdine();
+        });
+    }
+
+    if (formModificaOrdine) {
+        formModificaOrdine.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                id_ordine: idOrdineModifica.value,
+                nome_cliente: clienteModifica.value,
+                numero_tavolo: tavoloModifica.value,
+                numero_persone: personeModifica.value,
+                metodo_pagamento: pagamentoModifica.value
+            };
+
+            try {
+                const response = await fetch('/api/modifica_ordine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    // Ricarica gestita da socket
+                } else {
+                    const err = await response.json();
+                    alert('Errore: ' + (err.errore || 'Impossibile modificare ordine'));
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Errore di connessione.');
+            }
+            
+            chiudiModaleModificaOrdine();
+        });
+    }
 });

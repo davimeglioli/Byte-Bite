@@ -99,6 +99,12 @@ header p {
     white-space: nowrap;
     font-size: 1rem;
     box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.08);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.menu-laterale nav::-webkit-scrollbar {
+    display: none;
 }
 
 .menu-laterale ul {
@@ -932,6 +938,22 @@ body.pagina-login {
     border-right: 2px solid #5f6f82;
     border-bottom: 2px solid #5f6f82;
     transform: rotate(45deg);
+    transition: transform 0.2s ease;
+}
+
+.bottone-espandi.attivo .espandi {
+    transform: rotate(225deg);
+    margin-top: 5px;
+}
+
+/* Animazione comparsa dettagli */
+.dettagli-ordine-contenitore {
+    animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 
@@ -941,35 +963,30 @@ body.pagina-login {
     box-shadow: 0 6px 14px rgba(0,0,0,0.12);
 }
 
-.menu-laterale nav,
 .lista-articoli-ordine,
 body.cruscotto {
     scrollbar-width: thin;
     scrollbar-color: #cfcfcf #f2f2f2;
 }
 
-.menu-laterale nav::-webkit-scrollbar,
 .lista-articoli-ordine::-webkit-scrollbar,
 body.cruscotto::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
-.menu-laterale nav::-webkit-scrollbar-track,
 .lista-articoli-ordine::-webkit-scrollbar-track,
 body.cruscotto::-webkit-scrollbar-track {
     background: #f2f2f2;
     border-radius: 8px;
 }
 
-.menu-laterale nav::-webkit-scrollbar-thumb,
 .lista-articoli-ordine::-webkit-scrollbar-thumb,
 body.cruscotto::-webkit-scrollbar-thumb {
     background: #cfcfcf;
     border-radius: 8px;
 }
 
-.menu-laterale nav::-webkit-scrollbar-thumb:hover,
 .lista-articoli-ordine::-webkit-scrollbar-thumb:hover,
 body.cruscotto::-webkit-scrollbar-thumb:hover {
     background: #bdbdbd;
@@ -981,539 +998,8 @@ body.cruscotto {
 
 body.amministrazione {
     overflow-y: auto;
-    height: auto;
 }
 
-button,
-.linguetta,
-.tasto-conferma-ordine,
-.tasto-aumenta,
-.tasto-diminuisci,
-.tasto-rimuovi,
-.tasto-piu,
-.tasto-meno {
-    touch-action: manipulation;
-}
-
-@keyframes lampeggioBordo {
-    0%, 100% {
-        border-color: #0A8031;
-        box-shadow: 0 0 8px #0A8031;
-    }
-    50% {
-        border-color: #8DDE8E;
-        box-shadow: 0 0 2px #8DDE8E;
-    }
-}
-
-@media (min-width: 1100px) {
-    .griglia-ordini {
-        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    }
-}
-
-@media (max-width: 900px) {
-    .griglia-ordini {
-        grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    }
-}
-
-@media (max-width: 768px) {
-    .menu-laterale {
-        margin-top: 20px !important;
-    }
-
-    .contenitore {
-        flex-direction: column;
-        height: auto !important;
-        overflow: visible !important;
-        padding: 0 12px;
-    }
-
-    .menu-laterale {
-        width: 100%;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        padding: 12px;
-        height: auto !important;
-        overflow: visible !important;
-        border-radius: 16px;
-    }
-
-    .riepilogo-carrello {
-        width: 100%;
-        margin: 0 0 10px 0;
-        padding: 20px;
-        height: auto !important;
-        overflow: visible !important;
-        border-radius: 16px;
-    }
-
-    .prodotti {
-        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
-        gap: 12px;
-        padding: 12px 4px;
-    }
-
-    .prodotto {
-        padding: 14px 10px;
-        border-radius: 16px;
-    }
-
-    header {
-        padding: 10px 12px;
-    }
-
-    header p {
-        font-size: 12px !important;
-        line-height: 1.2;
-    }
-
-    header h2 {
-        font-size: 20px;
-    }
-
-    html, body {
-        height: auto !important;
-        overflow-y: auto !important;
-    }
-}
-
-@media (max-width: 650px) {
-    .griglia-ordini {
-        grid-template-columns: 1fr;
-        padding: 0 .5rem 2rem;
-    }
-}
-
-@media (max-width: 480px) {
-    header {
-        height: 56px;
-        padding: 0 12px;
-    }
-    .logo img {
-        height: 24px;
-    }
-    header h2 {
-        font-size: 18px;
-        margin-left: 12px;
-    }
-    header p {
-        display: none;
-    }
-    .contenitore-login {
-        padding: 16px 12px 24px;
-        min-height: calc(100vh - 56px);
-    }
-    .scheda-login {
-        padding: 22px 16px;
-        border-radius: 16px;
-        max-width: 360px;
-    }
-    .titolo-login {
-        font-size: 20px;
-    }
-    .campo-login {
-        font-size: 16px;
-        padding: 12px 12px;
-    }
-    .tasto-login {
-        font-size: 17px;
-        padding: 12px;
-    }
-}
-
-/* --- MENU CATEGORIE AMMINISTRAZIONE --- */
-
-.menu-categorie-amministrazione {
-    margin-bottom: 20px;
-    overflow-x: auto;
-    white-space: nowrap;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.menu-categorie-amministrazione::-webkit-scrollbar {
-    display: none;
-}
-
-.menu-categorie-amministrazione ul {
-    display: flex;
-    gap: 10px;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.menu-categorie-amministrazione .linguetta {
-    background-color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #666;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid #eee;
-}
-
-.menu-categorie-amministrazione .linguetta:hover {
-    background-color: #f8f8f8;
-    color: #333;
-}
-
-.menu-categorie-amministrazione .linguetta.attiva {
-    background-color: #FF006E;
-    color: white;
-    border-color: #FF006E;
-    font-weight: 600;
-}
-
-/* --- NAVIGAZIONE AMMINISTRAZIONE --- */
-
-.contenitore-menu {
-    background-color: white;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    margin: 0 auto 20px auto;
-    white-space: nowrap;
-    box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.08);
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-.contenitore-menu ul {
-    padding: 8px 10px;
-    display: flex;
-    gap: 8px;
-    margin: 0;
-}
-
-.contenitore-menu li {
-    color: #808080;
-    display: inline-block;
-    background-color: #F2F2F2;
-    border: none;
-    border-radius: 30px;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
-    transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
-}
-
-/* --- INTERRUTTORE DISPONIBILITÀ --- */
-
-.interruttore {
-    position: relative;
-    display: inline-block;
-    width: 36px;
-    height: 20px;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-
-.interruttore input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.cursore {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 34px;
-}
-
-.cursore:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 2px;
-    bottom: 2px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-}
-
-input:checked + .cursore {
-    background-color: #16A34A;
-}
-
-input:checked + .cursore:before {
-    transform: translateX(16px);
-}
-
-.testo-disponibilita {
-    vertical-align: middle;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-/* --- MODALE RIFORNIMENTO --- */
-
-/* Overlay (Sfondo scuro) */
-.modale-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Nero al 50% */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    z-index: 1000;
-    backdrop-filter: blur(2px); /* Effetto sfocato moderno */
-}
-
-/* Stato attivo del modale */
-.modale-overlay.attivo {
-    opacity: 1;
-    visibility: visible;
-}
-
-/* Finestra del Modale */
-.modale-finestra {
-    background-color: white;
-    padding: 30px;
-    border-radius: 20px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 400px;
-    transform: translateY(20px);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Effetto rimbalzo */
-    text-align: center;
-}
-
-.modale-overlay.attivo .modale-finestra {
-    transform: translateY(0);
-}
-
-.modale-titolo {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #111;
-    font-size: 22px;
-    font-weight: 700;
-}
-
-.modale-testo {
-    color: #666;
-    margin-bottom: 25px;
-    font-size: 15px;
-}
-
-/* Input specifico per il modale */
-.modale-input {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #E0E0E0;
-    border-radius: 12px;
-    font-size: 18px;
-    text-align: center;
-    font-weight: 600;
-    color: #333;
-    box-sizing: border-box; /* Importante per il padding */
-    margin-bottom: 25px;
-    transition: border-color 0.2s;
-}
-
-.modale-input:focus {
-    outline: none;
-    border-color: #FF006E;
-}
-
-/* Bottoni Azione */
-.modale-azioni {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-}
-
-.btn-modale {
-    flex: 1;
-    padding: 12px;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 16px;
-    border: none;
-    transition: opacity 0.2s;
-    cursor: pointer;
-}
-
-.btn-annulla {
-    background-color: #F2F2F2;
-    color: #333;
-}
-
-.btn-conferma {
-    background-color: #FF006E;
-    color: white;
-    box-shadow: 0 4px 10px rgba(255, 0, 110, 0.3);
-}
-
-.btn-modale:hover {
-    opacity: 0.9;
-}
-
-.btn-modale:active {
-    transform: scale(0.98);
-}
-
-/* --- MODALE MODIFICA PRODOTTO --- */
-
-/* Form di modifica */
-.campo-form {
-    margin-bottom: 15px;
-    text-align: left;
-}
-
-.etichetta {
-    display: block;
-    margin-bottom: 5px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #666;
-}
-
-.input-form {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #E0E0E0;
-    border-radius: 8px;
-    font-size: 16px;
-    color: #333;
-    box-sizing: border-box;
-    transition: border-color 0.2s;
-    font-family: "Inter", sans-serif;
-}
-
-.input-form:focus {
-    outline: none;
-    border-color: #FF006E;
-}
-
-/* TOGGLE SWITCH */
-.toggle-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background-color: #F9F9F9;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #E0E0E0;
-}
-
-.toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 26px;
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 34px;
-}
-
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 20px;
-    width: 20px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-}
-
-input:checked + .slider {
-    background-color: #FF006E;
-}
-
-input:checked + .slider:before {
-    transform: translateX(24px);
-}
-
-/* Label stato disponibilità */
-.stato-label {
-    font-weight: 600;
-    font-size: 14px;
-    color: #666;
-}
-
-input:checked ~ .stato-label {
-    color: #FF006E;
-}
-
-/* --- STILI MODALE ELIMINAZIONE (Nuovi) --- */
-.btn-elimina {
-    background-color: #FF3B30; /* Rosso Apple */
-    color: white;
-    box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3);
-}
-
-.btn-elimina:hover {
-    background-color: #ff2d20;
-    box-shadow: 0 6px 14px rgba(255, 59, 48, 0.4);
-}
-
-.icona-attenzione {
-    width: 64px;
-    height: 64px;
-    background-color: #FFE5E5;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 15px auto;
-    color: #FF3B30;
-}
-
-.icona-attenzione svg {
-    width: 32px;
-    height: 32px;
-    stroke: currentColor;
-    stroke-width: 2;
-}
-
-/* --- CLASSI DI UTILITÀ (JS) --- */
-.nascosto {
-    display: none !important;
-}
-
-.testo-attivo {
-    color: #FF006E !important;
-}
-
-.testo-inattivo {
-    color: #666 !important;
+.tasto-aggiungi-header {
+    margin-left: auto;
 }
