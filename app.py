@@ -13,10 +13,6 @@ timer_attivi = {}
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
-@app.errorhandler(403)
-def forbidden_error(error):
-    return render_template('403.html'), 403
-
 socketio = SocketIO(
     app,
     async_mode='threading',
@@ -1170,3 +1166,4 @@ if __name__ == '__main__':
         s.close()
     print(f'Avvio server — apri: http://{ip}:8000/')
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+    
