@@ -6,12 +6,17 @@ import secrets
 from flask_socketio import SocketIO, join_room
 import uuid
 from functools import wraps
+import contextlib
 
 # Dizionario per tracciare i timer attivi per gli ordini
 timer_attivi = {}
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return "403 Forbidden", 403
 
 socketio = SocketIO(
     app,
@@ -23,11 +28,15 @@ socketio = SocketIO(
 
 # --- UTILITY DATABASE ---
 
+@contextlib.contextmanager
 def ottieni_db():
-    """Stabilisce una connessione al database."""
+    """Stabilisce una connessione al database e la chiude automaticamente."""
     connessione = sq.connect('db.sqlite3')
     connessione.row_factory = sq.Row
-    return connessione
+    try:
+        yield connessione
+    finally:
+        connessione.close()
 
 def esegui_query(query, argomenti=(), uno=False, commit=False):
     """Esegue una query SQL e gestisce la connessione."""
@@ -367,9 +376,6 @@ def home():
 @accesso_richiesto
 @richiedi_permesso("CASSA")
 def cassa():
-    conn = ottieni_db()
-    conn.row_factory = sq.Row
-    
     # Usa GROUP BY per ottenere categorie uniche mantenendo l'ordine originale
     categorie_righe = esegui_query('SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)')
     categorie = [riga['categoria_menu'] for riga in categorie_righe]
@@ -408,49 +414,62 @@ def aggiungi_ordine():
         prodotti = []
 
     # Inserisce il nuovo ordine
-    with ottieni_db() as connessione:
-        cursore = connessione.cursor()
-        cursore.execute("""
-            INSERT INTO ordini (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento)
-            VALUES (?, ?, ?, ?, ?)
-        """, (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento))
-        id_ordine = cursore.lastrowid  # ID dell'ordine appena creato
-
-        # Inserisci i prodotti e aggiorna il magazzino
-        for p in prodotti:
+    try:
+        with ottieni_db() as connessione:
+            cursore = connessione.cursor()
             cursore.execute("""
-                INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)
-                VALUES (?, ?, ?, ?)
-            """, (id_ordine, p["id"], p["quantita"], "In Attesa"))
+                INSERT INTO ordini (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento)
+                VALUES (?, ?, ?, ?, ?)
+            """, (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento))
+            id_ordine = cursore.lastrowid  # ID dell'ordine appena creato
+
+            # Inserisci i prodotti e aggiorna il magazzino
+            for p in prodotti:
+                # 1. Tenta di scalare la quantità (Atomico)
+                cursore.execute("""
+                    UPDATE prodotti
+                    SET quantita = quantita - ?, venduti = venduti + ?
+                    WHERE id = ? AND quantita >= ?
+                """, (p["quantita"], p["quantita"], p["id"], p["quantita"]))
+
+                if cursore.rowcount == 0:
+                    # Rollback automatico uscendo dal contesto con eccezione
+                    raise Exception(f"Prodotto {p.get('nome', 'Sconosciuto')} esaurito o insufficiente.")
+
+                # 2. Se andato a buon fine, registra la riga ordine
+                cursore.execute("""
+                    INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)
+                    VALUES (?, ?, ?, ?)
+                """, (id_ordine, p["id"], p["quantita"], "In Attesa"))
+
+            # Ottieni tutte le categorie dashboard coinvolte in questo ordine
             cursore.execute("""
-                UPDATE prodotti
-                SET quantita = quantita - ?, venduti = venduti + ?
-                WHERE id = ?
-            """, (p["quantita"], p["quantita"], p["id"]))
+                SELECT DISTINCT prodotti.categoria_dashboard
+                FROM ordini_prodotti
+                JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
+                WHERE ordini_prodotti.ordine_id = ?
+            """, (id_ordine,))
+            categorie_dashboard = [riga[0] for riga in cursore.fetchall()]
+            connessione.commit()
 
-        # Ottieni tutte le categorie dashboard coinvolte in questo ordine
-        cursore.execute("""
-            SELECT DISTINCT prodotti.categoria_dashboard
-            FROM ordini_prodotti
-            JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
-            WHERE ordini_prodotti.ordine_id = ?
-        """, (id_ordine,))
-        categorie_dashboard = [riga[0] for riga in cursore.fetchall()]
-        connessione.commit()
+        # Avvisa le dashboard in tempo reale
+        for cat in categorie_dashboard:
+            emissione_sicura('aggiorna_dashboard', {'categoria': cat}, stanza=cat)
+        socketio.start_background_task(ricalcola_statistiche)
 
-    # Avvisa le dashboard in tempo reale
-    for cat in categorie_dashboard:
-        emissione_sicura('aggiorna_dashboard', {'categoria': cat}, stanza=cat)
-    socketio.start_background_task(ricalcola_statistiche)
+        return redirect(url_for('cassa') + f'?last_order_id={id_ordine}', code=303)
 
-    return redirect(url_for('cassa') + f'?last_order_id={id_ordine}', code=303)
+    except Exception as e:
+        print(f"[ERRORE ORDINE] {e}")
+        # Redirect con errore (gestito idealmente dal frontend)
+        return redirect(url_for('cassa') + f'?error={e}', code=303)
 
 # --- ROUTES: DASHBOARD ---
 
 @app.route('/dashboard/<category>/')
 @accesso_richiesto
 def dashboard(category):
-    permesso = "DASHBOARD_" + category.upper()
+    permesso = "DASHBOARD"
 
     richiedi_permesso(permesso)(lambda: None)()
 
@@ -1046,22 +1065,22 @@ def ordine_dettagli(ordine_id):
     
     return render_template('partials/_ordine_dettagli.html', dettagli=dettagli, totale=totale, ordine_id=ordine_id)
 
-@app.route('/test_expansion')
-@accesso_richiesto
-@richiedi_permesso("AMMINISTRAZIONE")
-def test_expansion():
-    # Fetch some orders for testing
-    ordini = esegui_query("""
-        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
-               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
-        FROM ordini o
-        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
-        LEFT JOIN prodotti p ON op.prodotto_id = p.id
-        GROUP BY o.id
-        ORDER BY o.data_ordine DESC
-        LIMIT 5
-    """)
-    return render_template('test_row_expansion.html', ordini=ordini)
+# @app.route('/test_expansion')
+# @accesso_richiesto
+# @richiedi_permesso("AMMINISTRAZIONE")
+# def test_expansion():
+#     # Fetch some orders for testing
+#     ordini = esegui_query("""
+#         SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
+#                COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
+#         FROM ordini o
+#         LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
+#         LEFT JOIN prodotti p ON op.prodotto_id = p.id
+#         GROUP BY o.id
+#         ORDER BY o.data_ordine DESC
+#         LIMIT 5
+#     """)
+#     return render_template('test_row_expansion.html', ordini=ordini)
 
 @app.route('/api/ordine/<int:id_ordine>')
 def api_ordine(id_ordine):
@@ -1166,4 +1185,3 @@ if __name__ == '__main__':
         s.close()
     print(f'Avvio server — apri: http://{ip}:8000/')
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)
-    

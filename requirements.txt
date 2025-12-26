@@ -5,3 +5,6 @@ customtkinter
 psutil
 qrcode
 Pillow
+pytest
+pytest-flask
+pytest-cov
