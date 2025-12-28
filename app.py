@@ -24,20 +24,14 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 def forbidden_error(error):
     return "403 Forbidden", 403
 
-socketio = SocketIO(
-    app,
-    async_mode='threading',
-    cors_allowed_origins="*",
-    ping_timeout=60,      # Quanto tempo il server aspetta un PONG
-    ping_interval=25,     # Ogni quanto manda un PING
-)
+socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*", logger=False, engineio_logger=False)
 
 # --- UTILITY DATABASE ---
 
 @contextlib.contextmanager
 def ottieni_db():
     """Stabilisce una connessione al database e la chiude automaticamente."""
-    connessione = sq.connect('db.sqlite3')
+    connessione = sq.connect('db.sqlite3', timeout=30)
     connessione.row_factory = sq.Row
     try:
         yield connessione
@@ -282,7 +276,7 @@ def ricalcola_statistiche():
 
     # Inserisce statistiche totali
     esegui_query("""
-        INSERT INTO statistiche_totali
+        INSERT OR REPLACE INTO statistiche_totali
         (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
         VALUES (1, ?, ?, ?, ?, ?)
     """, (

@@ -9,3 +9,8 @@ pytest
 pytest-flask
 pytest-cov
 fpdf2>=2.7,<3.0
+playwright
+pytest-playwright
+python-dotenv
+gevent
+gevent-websocket

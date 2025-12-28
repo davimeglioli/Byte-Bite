@@ -96,14 +96,22 @@ def test_ordine_asporto(client, monkeypatch):
     monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
+    # Setup dummy product
+    with ottieni_db() as conn:
+        conn.execute(
+            "INSERT INTO prodotti (id, nome, prezzo, categoria_menu, categoria_dashboard, quantita, venduti) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (99, "Acqua", 1.0, "Bar", "Bar", 100, 0)
+        )
+        conn.commit()
+
     dati_ordine = {
         "nome_cliente": "Giulia",
         "isTakeaway": "on", # Checkbox attiva
         "numero_tavolo": "99", # Dovrebbe essere ignorato
         "metodo_pagamento": "Contanti",
-        "prodotti": json.dumps([]) # Nessun prodotto, solo per testare header
+        "prodotti": json.dumps([{"id": 99, "quantita": 1, "nome": "Acqua"}])
     }
-    
+
     client.post('/aggiungi_ordine/', data=dati_ordine)
     
     with ottieni_db() as conn:

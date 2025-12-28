@@ -93,6 +93,19 @@ async function aggiornaTabellaOrdini() {
     document.querySelector(".tabella-ordini tbody").innerHTML = html;
 }
 
+// Funzione per filtrare i prodotti (Global)
+function filtraProdotti(categoria) {
+    const righe = document.querySelectorAll(".tabella-ordini tbody tr[data-categoria]");
+    righe.forEach(riga => {
+        const catRiga = riga.getAttribute("data-categoria");
+        if (categoria === "Tutte" || catRiga === categoria) {
+            riga.classList.remove("nascosto");
+        } else {
+            riga.classList.add("nascosto");
+        }
+    });
+}
+
 async function aggiornaTabellaProdotti() {
     const res = await fetch("/api/amministrazione/prodotti_html");
     const html = await res.text();
@@ -101,6 +114,13 @@ async function aggiornaTabellaProdotti() {
     const tabelle = document.querySelectorAll(".tabella-ordini tbody");
     if (tabelle.length >= 2) {
         tabelle[1].innerHTML = html;
+        
+        // Re-applica il filtro della tab attiva
+        const activeTab = document.querySelector(".contenitore-menu .linguetta.attiva");
+        if (activeTab) {
+             const categoria = activeTab.getAttribute("data-categoria") || activeTab.textContent.trim();
+             filtraProdotti(categoria);
+        }
     }
 }
 
