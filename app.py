@@ -1,18 +1,24 @@
-from flask import Flask, json, jsonify, redirect, render_template, request, session, abort, url_for
+from flask import Flask, json, jsonify, redirect, render_template, request, session, abort, url_for, Response
 import sqlite3 as sq
 import socket
 import bcrypt
 import secrets
+import os
+from dotenv import load_dotenv
 from flask_socketio import SocketIO, join_room
+
+load_dotenv()
 import uuid
 from functools import wraps
 import contextlib
+from datetime import datetime
+from fpdf import FPDF, XPos, YPos
 
 # Dizionario per tracciare i timer attivi per gli ordini
 timer_attivi = {}
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
+app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
 @app.errorhandler(403)
 def forbidden_error(error):
@@ -114,6 +120,8 @@ def emissione_sicura(evento, dati, stanza=None):
     """Invia un messaggio SocketIO gestendo eventuali errori."""
     try:
         socketio.emit(evento, dati, room=stanza)
+        if stanza and stanza != 'amministrazione' and evento == 'aggiorna_dashboard':
+            socketio.emit(evento, dati, room='amministrazione')
     except Exception as e:
         app.logger.warning(f"[SocketIO] Errore durante emissione: {e}")
 
@@ -413,6 +421,9 @@ def aggiungi_ordine():
     except json.JSONDecodeError:
         prodotti = []
 
+    if not prodotti:
+        return redirect(url_for('cassa') + '?error=Nessun prodotto selezionato', code=303)
+
     # Inserisce il nuovo ordine
     try:
         with ottieni_db() as connessione:
@@ -644,6 +655,9 @@ def amministrazione():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def api_statistiche():
+    return jsonify(costruisci_dati_statistiche())
+
+def costruisci_dati_statistiche():
     ordini_totali = esegui_query("SELECT COUNT(*) AS c FROM ordini", uno=True)["c"]
     ordini_completati = esegui_query("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", uno=True)["c"]
 
@@ -711,7 +725,7 @@ def api_statistiche():
     )
     top10 = [dict(r) for r in righe_top10] if righe_top10 else []
 
-    return jsonify({
+    return {
         "totali": {
             "ordini_totali": ordini_totali,
             "ordini_completati": ordini_completati,
@@ -722,7 +736,175 @@ def api_statistiche():
         "categorie": categorie,
         "ore": ore,
         "top10": top10
-    })
+    }
+
+@app.route('/amministrazione/esporta_statistiche')
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def esporta_statistiche():
+
+    dati_statistiche = costruisci_dati_statistiche()
+    generato_il = datetime.now()
+
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_compression(False)
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Byte-Bite - Report Statistiche", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, f"Generato il: {generato_il.strftime('%Y-%m-%d %H:%M:%S')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.ln(4)
+
+    totali = dati_statistiche.get("totali", {})
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 8, "Riepilogo", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 6, f"Ordini totali: {totali.get('ordini_totali', 0)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 6, f"Ordini completati: {totali.get('ordini_completati', 0)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 6, f"Incasso totale (EUR): {float(totali.get('totale_incasso', 0)):.2f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 6, f"Incasso contanti (EUR): {float(totali.get('totale_contanti', 0)):.2f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 6, f"Incasso carta (EUR): {float(totali.get('totale_carta', 0)):.2f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(6)
+
+    def stampa_tabella(titolo, headers, righe, col_widths):
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.cell(0, 8, titolo, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+        pdf.set_font("Helvetica", "B", 10)
+        for header, w in zip(headers, col_widths):
+            pdf.cell(w, 7, str(header), border=1)
+        pdf.ln()
+
+        pdf.set_font("Helvetica", "", 10)
+        for riga in righe:
+            for value, w in zip(riga, col_widths):
+                testo = str(value)
+                if len(testo) > 48:
+                    testo = testo[:45] + "..."
+                pdf.cell(w, 7, testo, border=1)
+            pdf.ln()
+        pdf.ln(6)
+
+    categorie = dati_statistiche.get("categorie", [])
+    righe_categorie = [(c.get("categoria_dashboard", ""), c.get("totale", 0)) for c in categorie]
+    if righe_categorie:
+        stampa_tabella(
+            "Ordini per categoria",
+            ["Categoria", "Totale"],
+            righe_categorie,
+            [120, 40]
+        )
+
+    ore = dati_statistiche.get("ore", [])
+    righe_ore = [(o.get("ora", ""), o.get("totale", 0)) for o in ore]
+    if righe_ore:
+        stampa_tabella(
+            "Andamento ordini per ora",
+            ["Ora", "Totale"],
+            righe_ore,
+            [40, 40]
+        )
+
+    top10 = dati_statistiche.get("top10", [])
+    righe_top10 = [(p.get("nome", ""), p.get("venduti", 0)) for p in top10]
+    if righe_top10:
+        stampa_tabella(
+            "Prodotti piu venduti (Top 10)",
+            ["Prodotto", "Venduti"],
+            righe_top10,
+            [120, 40]
+        )
+
+    ordini = esegui_query("""
+        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.asporto, o.data_ordine, o.metodo_pagamento, o.completato
+        FROM ordini o
+        ORDER BY o.data_ordine DESC
+    """)
+
+    if ordini:
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 9, "Dettaglio ordini", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+
+        def tronca_testo(testo, max_len):
+            testo = str(testo)
+            return testo if len(testo) <= max_len else (testo[: max_len - 3] + "...")
+
+        for ordine in ordini:
+            id_ordine = ordine["id"]
+            righe_prodotti = esegui_query(
+                """
+                SELECT
+                    p.nome,
+                    p.categoria_menu,
+                    op.quantita,
+                    p.prezzo,
+                    (p.prezzo * op.quantita) as subtotale,
+                    op.stato
+                FROM ordini_prodotti op
+                JOIN prodotti p ON p.id = op.prodotto_id
+                WHERE op.ordine_id = ?
+                ORDER BY p.categoria_menu, p.nome
+                """,
+                (id_ordine,)
+            )
+
+            totale_ordine = sum((r["subtotale"] or 0) for r in righe_prodotti) if righe_prodotti else 0
+
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 7, f"Ordine #{id_ordine}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+            pdf.set_font("Helvetica", "", 10)
+            pdf.cell(0, 6, f"Data: {ordine['data_ordine']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(0, 6, f"Cliente: {ordine['nome_cliente']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+            tipo = "Asporto" if ordine["asporto"] == 1 else "Tavolo"
+            tavolo = "-" if ordine["numero_tavolo"] is None else ordine["numero_tavolo"]
+            persone = "-" if ordine["numero_persone"] is None else ordine["numero_persone"]
+            completato = "Si" if ordine["completato"] == 1 else "No"
+            pdf.cell(
+                0,
+                6,
+                f"Tipo: {tipo} | Tavolo: {tavolo} | Persone: {persone} | Pagamento: {ordine['metodo_pagamento']} | Completato: {completato}",
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT
+            )
+            pdf.cell(0, 6, f"Totale ordine (EUR): {float(totale_ordine):.2f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.ln(2)
+
+            if righe_prodotti:
+                headers = ["Prodotto", "Qta", "Prezzo", "Subtot.", "Stato"]
+                widths = [80, 15, 20, 20, 35]
+
+                pdf.set_font("Helvetica", "B", 10)
+                for header, w in zip(headers, widths):
+                    pdf.cell(w, 7, header, border=1)
+                pdf.ln()
+
+                pdf.set_font("Helvetica", "", 10)
+                for riga in righe_prodotti:
+                    nome_prodotto = f"{riga['categoria_menu']} - {riga['nome']}"
+                    valori = [
+                        tronca_testo(nome_prodotto, 44),
+                        riga["quantita"],
+                        f"{float(riga['prezzo']):.2f}",
+                        f"{float(riga['subtotale'] or 0):.2f}",
+                        tronca_testo(riga["stato"], 18)
+                    ]
+                    for val, w in zip(valori, widths):
+                        pdf.cell(w, 7, str(val), border=1)
+                    pdf.ln()
+
+            pdf.ln(6)
+
+    pdf_bytes = bytes(pdf.output())
+    filename = f"statistiche_{generato_il.strftime('%Y%m%d_%H%M%S')}.pdf"
+    headers = {"Content-Disposition": f'attachment; filename=\"{filename}\"'}
+    return Response(pdf_bytes, mimetype="application/pdf", headers=headers)
 
 @app.route('/api/rifornisci_prodotto', methods=['POST'])
 @accesso_richiesto
@@ -930,6 +1112,11 @@ def aggiungi_utente():
     if not username or not password:
         return jsonify({"errore": "Username e password obbligatori"}), 400
 
+    if not isinstance(permessi, list):
+        permessi = []
+    permessi = [p.strip() for p in permessi if isinstance(p, str) and p.strip()]
+    permessi = list(dict.fromkeys(permessi))
+
     try:
         with ottieni_db() as connessione:
             cursore = connessione.cursor()
@@ -977,6 +1164,11 @@ def modifica_utente():
         is_admin = 1 if data.get('is_admin') else 0
         attivo = 1 if data.get('attivo') else 0
         permessi = data.get('permessi', [])
+
+        if not isinstance(permessi, list):
+            permessi = []
+        permessi = [p.strip() for p in permessi if isinstance(p, str) and p.strip()]
+        permessi = list(dict.fromkeys(permessi))
 
         with ottieni_db() as connessione:
             cursore = connessione.cursor()
@@ -1184,4 +1376,5 @@ if __name__ == '__main__':
     finally:
         s.close()
     print(f'Avvio server — apri: http://{ip}:8000/')
-    socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+    debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
+    socketio.run(app, host='0.0.0.0', port=8000, debug=debug_mode)

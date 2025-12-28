@@ -8,3 +8,4 @@ Pillow
 pytest
 pytest-flask
 pytest-cov
+fpdf2>=2.7,<3.0

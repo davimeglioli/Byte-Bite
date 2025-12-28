@@ -2,6 +2,7 @@
 <html lang="it">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -119,7 +120,7 @@
                     <h3>Dettaglio ordini</h3>
                 </div>
                 <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini">
+                    <table class="tabella-ordini tabella-ordini--ordini">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -158,7 +159,7 @@
                 </nav>
                 
                 <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini">
+                    <table class="tabella-ordini tabella-ordini--prodotti">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -188,7 +189,7 @@
                 </div>
                 
                 <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini">
+                    <table class="tabella-ordini tabella-ordini--utenti">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -209,6 +210,9 @@
             </div>
         </section>
 
+        <div class="contenitore-azioni-admin">
+            <a class="tasto-index" href="{{ url_for('esporta_statistiche') }}">Esporta statistiche</a>
+        </div>
 
         <script src="{{ url_for('static', filename='js/amministrazione.js') }}"></script>
 

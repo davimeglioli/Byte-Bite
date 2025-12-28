@@ -103,3 +103,40 @@ def test_admin_toggle_utente(client):
     with ottieni_db() as conn:
         stato = conn.execute("SELECT attivo FROM utenti WHERE id=?", (target_id,)).fetchone()["attivo"]
         assert stato == 1
+
+def test_admin_modifica_utente_permessi_duplicati(client):
+    with ottieni_db() as conn:
+        conn.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
+            ("admin_permessi", "hash", 1, 1),
+        )
+        conn.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
+            ("target_permessi", "hash", 0, 1),
+        )
+        admin_id = conn.execute("SELECT id FROM utenti WHERE username='admin_permessi'").fetchone()["id"]
+        target_id = conn.execute("SELECT id FROM utenti WHERE username='target_permessi'").fetchone()["id"]
+        conn.commit()
+
+    with client.session_transaction() as sess:
+        sess["id_utente"] = admin_id
+        sess["username"] = "admin_permessi"
+        sess["is_admin"] = True
+
+    payload = {
+        "id_utente": target_id,
+        "username": "target_permessi",
+        "attivo": 1,
+        "is_admin": 0,
+        "permessi": ["CASSA", "CASSA", "DASHBOARD", ""],
+    }
+    resp = client.post("/api/modifica_utente", json=payload)
+    assert resp.status_code == 200
+
+    with ottieni_db() as conn:
+        permessi = conn.execute(
+            "SELECT pagina FROM permessi_pagine WHERE utente_id = ? ORDER BY pagina",
+            (target_id,),
+        ).fetchall()
+        pagine = [p["pagina"] for p in permessi]
+        assert pagine == ["CASSA", "DASHBOARD"]

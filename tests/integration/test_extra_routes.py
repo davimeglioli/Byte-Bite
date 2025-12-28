@@ -70,3 +70,30 @@ def test_inactive_user(client, auth):
     # Should redirect to login because user is inactive (session cleared)
     assert response.status_code == 302
     assert '/login/' in response.location
+
+def test_esporta_statistiche_download(client, auth):
+    auth.login()
+
+    with ottieni_db() as conn:
+        conn.execute(
+            "INSERT INTO prodotti (id, nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (1000, "ProdTest", 3.5, "TestCat", "Bar", 1, 10, 0)
+        )
+        conn.execute(
+            "INSERT INTO ordini (id, asporto, data_ordine, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, completato) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (1000, 0, "2025-01-01 12:34:56", "Mario", 5, 2, "Contanti", 1)
+        )
+        conn.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (?, ?, ?, ?)",
+            (1000, 1000, 2, "Completato")
+        )
+        conn.commit()
+
+    response = client.get('/amministrazione/esporta_statistiche')
+    assert response.status_code == 200
+    assert response.mimetype == 'application/pdf'
+    assert 'attachment;' in response.headers.get('Content-Disposition', '')
+    assert response.data[:4] == b'%PDF'
+    assert b'Ordine #1000' in response.data
+    assert b'Mario' in response.data
+    assert b'ProdTest' in response.data

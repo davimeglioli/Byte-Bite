@@ -22,13 +22,15 @@
     <body>
         <section class="contenitore">
             <section class="menu-laterale">
-                <nav>
-                    <ul id="categorie-tabs">
-                        {% for categoria in categorie %}
-                            <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
-                        {% endfor %}
-                    </ul>
-                </nav>
+                <div class="nav-wrapper">
+                    <nav>
+                        <ul id="categorie-tabs">
+                            {% for categoria in categorie %}
+                                <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                </div>
                 
                 <div class="contenitore-prodotti">
                     {% for categoria, prodotti in prodotti_per_categoria.items() %}
@@ -36,6 +38,9 @@
                             {% for prodotto in prodotti %}
                                 {% if prodotto["disponibile"] and prodotto["quantita"]|int > 0 %}
                                     <div class="prodotto" data-id="{{ prodotto['id'] }}" data-prezzo="{{ prodotto['prezzo'] }}" data-quantita="{{ prodotto['quantita'] }}">
+                                        {% if prodotto["quantita"] <= 5 %}
+                                            <div class="bollino-scorta"></div>
+                                        {% endif %}
                                         <h4>{{ prodotto["nome"] }}</h4>
                                         <p>€{{ "%.2f"|format(prodotto["prezzo"]) }}</p>
                                         <div class="selettore-quantita">

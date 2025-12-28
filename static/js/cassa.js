@@ -180,6 +180,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     checkboxAsporto.addEventListener("change", aggiornaVisibilitaCampi);
     aggiornaVisibilitaCampi();
+
+    // Validazione form ordine
+    const formOrdine = document.querySelector(".riepilogo-carrello form");
+    if (formOrdine) {
+        formOrdine.addEventListener("submit", (e) => {
+            if (carrello.length === 0) {
+                e.preventDefault();
+                alert("Impossibile inviare l'ordine: nessun prodotto selezionato.");
+            }
+        });
+    }
 });
 
 let lastTouchEnd = 0;

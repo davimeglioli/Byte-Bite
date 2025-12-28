@@ -90,15 +90,41 @@ header p {
     overflow: auto;
 }
 
-.menu-laterale nav {
-    background-color: white;
+.nav-wrapper {
+    overflow: hidden;
     border-radius: 30px;
+    background-color: white;
+    box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.menu-laterale nav {
+    background-color: transparent;
     display: flex;
     align-items: center;
     overflow-x: auto;
     white-space: nowrap;
     font-size: 1rem;
-    box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.08);
+    box-shadow: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Nascondi scrollbar per Chrome, Safari e Opera */
+.menu-laterale nav::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+    -webkit-appearance: none !important;
+}
+
+.menu-laterale nav::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+.menu-laterale nav::-webkit-scrollbar-thumb {
+    background: transparent !important;
 }
 
 .menu-laterale ul {
@@ -172,6 +198,18 @@ header p {
     justify-content: space-between;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
     transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+    position: relative; /* Necessario per il bollino */
+}
+
+.bollino-scorta {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 8px;
+    height: 8px;
+    background-color: #FF006E;
+    border-radius: 50%;
+    pointer-events: none;
 }
 
 .prodotto h4, .prodotto-selezionato h4 {
@@ -406,7 +444,7 @@ circle {
 .tasto-conferma-ordine {
     width: 100%;
     background-color: #FF006E;
-    color: black;
+    color: white;
     border: none;
     border-radius: 12px;
     padding: 16px;
@@ -691,6 +729,13 @@ circle {
     overflow: hidden;
 }
 
+.contenitore-azioni-admin {
+    display: flex;
+    justify-content: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
 .contenitore-tabella h3 {
     font-size: 22px;
     font-weight: 700;
@@ -927,11 +972,18 @@ body.pagina-login {
 }
 
 .espandi {
+    display: block;
     width: 7px;
     height: 7px;
     border-right: 2px solid #5f6f82;
     border-bottom: 2px solid #5f6f82;
     transform: rotate(45deg);
+    transform-origin: 50% 50%;
+    transition: transform 0.2s ease;
+}
+
+.bottone-espandi.attivo .espandi {
+    transform: rotate(225deg);
 }
 
 
@@ -1077,13 +1129,55 @@ button,
         height: auto !important;
         overflow-y: auto !important;
     }
-}
 
-@media (max-width: 650px) {
+    /* Dashboard Mobile Styles (Tablet/Large Phone) */
     .griglia-ordini {
         grid-template-columns: 1fr;
         padding: 0 .5rem 2rem;
     }
+
+    .scheda-ordine {
+        padding: 12px;
+        border-radius: 12px;
+    }
+    
+    .titolo-ordine {
+        font-size: 18px;
+    }
+    
+    .info-ordine {
+        font-size: 13px;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    .riga-articolo-ordine {
+        padding: 8px;
+        font-size: 14px;
+    }
+    
+    .badge-quantita {
+        font-size: 13px;
+        padding: 2px 6px;
+    }
+    
+    .tasto-azione-ordine {
+        padding: 10px;
+        font-size: 15px;
+    }
+    
+    .divisore-cruscotto {
+        margin: 16px 12px;
+    }
+    
+    .titolo-completati {
+        font-size: 16px;
+        margin: 10px 0 16px;
+    }
+}
+
+@media (max-width: 650px) {
+    /* Rules merged into 768px for simpler management */
 }
 
 @media (max-width: 480px) {
@@ -1597,4 +1691,293 @@ input:checked ~ .stato-label {
     border: solid white;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+}
+
+@media (max-width: 768px) {
+    body.amministrazione {
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    header {
+        height: auto;
+        padding: 12px 14px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    header img {
+        height: 32px;
+    }
+
+    header h2 {
+        margin-left: 12px;
+        font-size: 18px;
+    }
+
+    header p {
+        width: 100%;
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.2;
+        opacity: 0.9;
+    }
+
+    .sezione-tabella {
+        padding: 10px;
+    }
+
+    .contenitore-tabella {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    .contenitore-tabella h3 {
+        font-size: 18px;
+        margin-bottom: 12px;
+    }
+
+    .contenitore-statistiche {
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .scheda-statistica {
+        margin: 0;
+        padding: 16px;
+        width: auto;
+        flex: 1 1 calc(50% - 10px);
+        min-width: 160px;
+    }
+
+    .scheda-statistica .etichetta-statistica .testo-etichetta {
+        font-size: 14px;
+    }
+
+    .valore-statistica {
+        font-size: 26px;
+        margin-top: 12px;
+    }
+
+    .contenitore-grafici {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        padding: 0;
+        gap: 12px;
+    }
+
+    .scheda-grafico {
+        flex: 1 1 100%;
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .scheda-grafico h3 {
+        font-size: 18px;
+    }
+
+    .contenitore-tabella-ordini {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table.tabella-ordini--ordini,
+    table.tabella-ordini--prodotti,
+    table.tabella-ordini--utenti {
+        min-width: 0;
+        border: none;
+    }
+
+    table.tabella-ordini--ordini > thead,
+    table.tabella-ordini--prodotti > thead,
+    table.tabella-ordini--utenti > thead {
+        display: none;
+    }
+
+    table.tabella-ordini--ordini > tbody,
+    table.tabella-ordini--prodotti > tbody,
+    table.tabella-ordini--utenti > tbody {
+        display: block;
+        width: 100%;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr,
+    table.tabella-ordini--prodotti > tbody > tr,
+    table.tabella-ordini--utenti > tbody > tr {
+        display: block;
+        width: 100%;
+        background: #fff;
+        border: 1px solid #E0E0E0;
+        border-radius: 16px;
+        overflow: hidden;
+        margin: 12px 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    table.tabella-ordini--ordini > tbody > tr > td,
+    table.tabella-ordini--prodotti > tbody > tr > td,
+    table.tabella-ordini--utenti > tbody > tr > td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 14px;
+        border-bottom: 1px solid #f0f0f0;
+        text-align: left;
+        white-space: normal;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr > td:last-child,
+    table.tabella-ordini--prodotti > tbody > tr > td:last-child,
+    table.tabella-ordini--utenti > tbody > tr > td:last-child {
+        border-bottom: none;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr > td::before,
+    table.tabella-ordini--prodotti > tbody > tr > td::before,
+    table.tabella-ordini--utenti > tbody > tr > td::before {
+        flex: 0 0 auto;
+        font-weight: 800;
+        color: #666;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(1)::before { content: "ID"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(2)::before { content: "Cliente"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(3)::before { content: "Tavolo"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(4)::before { content: "Persone"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(5)::before { content: "Data"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(6)::before { content: "Pagamento"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(7)::before { content: "Totale"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(8)::before { content: "Azioni"; }
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(9)::before { content: "Dettagli"; }
+
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(1)::before { content: "ID"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(2)::before { content: "Nome"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(3)::before { content: "Cat. Dashboard"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(4)::before { content: "Prezzo"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(5)::before { content: "Disponibilità"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(6)::before { content: "Quantità"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(7)::before { content: "Venduti"; }
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(8)::before { content: "Azioni"; }
+
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(1)::before { content: "ID"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(2)::before { content: "Username"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(3)::before { content: "Ruolo"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(4)::before { content: "Stato"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(5)::before { content: "Ammin."; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(6)::before { content: "Cassa"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(7)::before { content: "Dashboard"; }
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(8)::before { content: "Azioni"; }
+
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(8),
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(8),
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(8),
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(9) {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(8)::before,
+    table.tabella-ordini--prodotti > tbody > tr > td:nth-child(8)::before,
+    table.tabella-ordini--utenti > tbody > tr > td:nth-child(8)::before,
+    table.tabella-ordini--ordini > tbody > tr > td:nth-child(9)::before {
+        margin-right: auto;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr.riga-dettagli {
+        border: none;
+        box-shadow: none;
+        margin: 0;
+        margin-top: -12px;
+        background: transparent;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr.riga-dettagli td {
+        display: block;
+        padding: 0;
+        border: none;
+    }
+
+    table.tabella-ordini--ordini > tbody > tr.riga-dettagli td::before {
+        content: none;
+    }
+
+    .dettagli-ordine-contenitore {
+        padding: 14px !important;
+        border-bottom: none !important;
+        box-shadow: none !important;
+    }
+
+    .dettagli-ordine-contenitore > h4 {
+        margin-bottom: 12px !important;
+    }
+
+    .dettagli-ordine-contenitore table {
+        width: 100% !important;
+        min-width: 0 !important;
+        background: transparent !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .dettagli-ordine-contenitore table thead {
+        display: none !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody {
+        display: block !important;
+        width: 100% !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody tr {
+        display: block !important;
+        width: 100% !important;
+        background: #fff !important;
+        border: 1px solid #E0E0E0 !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        margin: 12px 0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody tr td {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        width: 100% !important;
+        padding: 12px 14px !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+        text-align: left !important;
+        white-space: normal !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody tr td:last-child {
+        border-bottom: none !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody tr td::before {
+        flex: 0 0 auto !important;
+        font-weight: 800 !important;
+        color: #666 !important;
+    }
+
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(1)::before { content: "Prodotto"; }
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(2)::before { content: "Categoria"; }
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(3)::before { content: "Quantità"; }
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(4)::before { content: "Prezzo"; }
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(5)::before { content: "Subtotale"; }
+    .dettagli-ordine-contenitore table tbody tr td:nth-child(6)::before { content: "Stato"; }
+
+    .dettagli-ordine-contenitore .badge-dettaglio {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 420px) {
+    .scheda-statistica {
+        flex-basis: 100%;
+        min-width: 0;
+    }
 }

@@ -80,13 +80,11 @@ function aggiornaCharts(stats) {
 
 function joinRooms(categorie) {
     if (!socket) return;
-    categorie.forEach(c => {
-        const nome = c.categoria_dashboard;
-        if (!joined.has(nome)) {
-            socket.emit("join", { categoria: nome });
-            joined.add(nome);
-        }
-    });
+    const room = 'amministrazione';
+    if (!joined.has(room)) {
+        socket.emit("join", { categoria: room });
+        joined.add(room);
+    }
 }
 
 async function aggiornaTabellaOrdini() {
@@ -676,7 +674,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const isAdmin = btn.getAttribute('data-is-admin') === '1';
         const isAttivo = btn.getAttribute('data-attivo') === '1';
         const permessiStr = btn.getAttribute('data-permessi') || '';
-        const permessi = permessiStr.split(',');
+        const permessi = permessiStr ? permessiStr.split(',').filter(Boolean) : [];
+        const permessiSet = new Set(permessi);
 
         if (idUtenteModifica) idUtenteModifica.value = id;
         if (usernameModifica) usernameModifica.value = username;
@@ -694,9 +693,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             isAttivoModifica.dispatchEvent(new Event('change'));
         }
 
-        // Reset and set permissions
-        document.querySelectorAll('input[name="permessi"]').forEach(cb => {
-            cb.checked = permessi.includes(cb.value);
+        const permessiCheckboxes = formModificaUtente
+            ? formModificaUtente.querySelectorAll('input[name="permessi"]')
+            : [];
+
+        permessiCheckboxes.forEach(cb => {
+            cb.checked = permessiSet.has(cb.value);
         });
 
         if (modaleModificaUtente) modaleModificaUtente.classList.add('attivo');
@@ -720,7 +722,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         formModificaUtente.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const permessiSelezionati = Array.from(document.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
+            const permessiSelezionati = Array.from(formModificaUtente.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
+            const permessiUnici = Array.from(new Set(permessiSelezionati));
 
             const data = {
                 id_utente: idUtenteModifica.value,
@@ -728,7 +731,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 password: passwordModifica.value, // Can be empty
                 is_admin: isAdminModifica.checked,
                 attivo: isAttivoModifica.checked,
-                permessi: permessiSelezionati
+                permessi: permessiUnici
             };
 
             try {
