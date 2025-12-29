@@ -6,19 +6,26 @@ import secrets
 import os
 from dotenv import load_dotenv
 from flask_socketio import SocketIO, join_room
-
-load_dotenv()
 import uuid
 from functools import wraps
 import contextlib
 from datetime import datetime
 from fpdf import FPDF, XPos, YPos
 
+load_dotenv()
+
 # Dizionario per tracciare i timer attivi per gli ordini
 timer_attivi = {}
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+with app.app_context():
+    try:
+        with sq.connect('db.sqlite3', timeout=30) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+    except Exception as e:
+        print(f"Attenzione: Impossibile abilitare WAL mode: {e}")
 
 @app.errorhandler(403)
 def forbidden_error(error):
@@ -53,16 +60,36 @@ def esegui_query(query, argomenti=(), uno=False, commit=False):
 # --- UTILITY AUTENTICAZIONE ---
 
 def ottieni_utente_loggato():
-    """Recupera i dati dell'utente attualmente loggato."""
+    """Recupera i dati dell'utente attualmente loggato dalla sessione (cache) o dal DB."""
     id_utente = session.get("id_utente")
     if not id_utente:
         return None
 
-    return esegui_query(
+    # CACHE IN SESSIONE: Se abbiamo già i dati utente validi in sessione, usali!
+    # Questo evita una query al DB per ogni singola richiesta HTTP.
+    if session.get("user_cache_id") == id_utente:
+        return {
+            "id": session["user_cache_id"],
+            "username": session["user_cache_username"],
+            "is_admin": session["user_cache_is_admin"],
+            "attivo": session["user_cache_attivo"]
+        }
+
+    # Se non sono in cache (primo accesso o sessione scaduta), leggili dal DB
+    utente = esegui_query(
         "SELECT id, username, is_admin, attivo FROM utenti WHERE id = ?",
         (id_utente,),
         uno=True
     )
+
+    # Aggiorna la cache in sessione
+    if utente:
+        session["user_cache_id"] = utente["id"]
+        session["user_cache_username"] = utente["username"]
+        session["user_cache_is_admin"] = utente["is_admin"]
+        session["user_cache_attivo"] = utente["attivo"]
+
+    return utente
 
 def accesso_richiesto(f):
     """Decoratore per richiedere il login per accedere a una route."""
@@ -185,107 +212,72 @@ def ottieni_ordini_per_categoria(categoria):
 
 def ricalcola_statistiche():
     """Ricalcola tutte le statistiche e le salva nel database."""
-    # Carica tutti gli ordini
-    ordini = esegui_query("""
-        SELECT id, metodo_pagamento, data_ordine, completato
-        FROM ordini
+    
+    # 1. Calcola Totali Generali
+    stats_totali = esegui_query("""
+        SELECT
+            (SELECT COUNT(*) FROM ordini) as ordini_totali,
+            (SELECT COUNT(*) FROM ordini WHERE completato = 1) as ordini_completati,
+            COALESCE(SUM(p.prezzo * op.quantita), 0) as totale_incasso,
+            COALESCE(SUM(CASE WHEN o.metodo_pagamento = 'Contanti' THEN p.prezzo * op.quantita ELSE 0 END), 0) as totale_contanti,
+            COALESCE(SUM(CASE WHEN o.metodo_pagamento != 'Contanti' THEN p.prezzo * op.quantita ELSE 0 END), 0) as totale_carta
+        FROM ordini o
+        JOIN ordini_prodotti op ON o.id = op.ordine_id
+        JOIN prodotti p ON op.prodotto_id = p.id
+    """, uno=True)
+
+    # 2. Calcola Totali per Categoria
+    stats_categorie = esegui_query("""
+        SELECT p.categoria_dashboard, SUM(op.quantita) as totale
+        FROM ordini_prodotti op
+        JOIN prodotti p ON op.prodotto_id = p.id
+        GROUP BY p.categoria_dashboard
     """)
 
-    # Totale ordini e completati
-    ordini_totali = len(ordini)
-    ordini_completati = sum(1 for o in ordini if o["completato"] == 1)
+    # 3. Calcola Totali per Ora
+    stats_ore = esegui_query("""
+        SELECT CAST(strftime('%H', data_ordine) AS INT) as ora, COUNT(*) as totale
+        FROM ordini
+        GROUP BY ora
+    """)
 
-    # Reset statistiche
-    esegui_query("DELETE FROM statistiche_totali", commit=True)
-    esegui_query("DELETE FROM statistiche_categorie", commit=True)
-    esegui_query("DELETE FROM statistiche_ore", commit=True)
+    # --- AGGIORNAMENTO DB ---
+    with ottieni_db() as conn:
+        cursor = conn.cursor()
+        
+        # Reset tabelle
+        cursor.execute("DELETE FROM statistiche_totali")
+        cursor.execute("DELETE FROM statistiche_categorie")
+        cursor.execute("DELETE FROM statistiche_ore")
 
-    # Categorie dashboard fisse
-    categorie = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
+        # Inserisci totali
+        cursor.execute("""
+            INSERT INTO statistiche_totali 
+            (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
+            VALUES (1, ?, ?, ?, ?, ?)
+        """, (
+            stats_totali["ordini_totali"] or 0,
+            stats_totali["ordini_completati"] or 0,
+            stats_totali["totale_incasso"],
+            stats_totali["totale_contanti"],
+            stats_totali["totale_carta"]
+        ))
 
-    # Inserisce le categorie
-    for cat in categorie:
-        esegui_query("""
-            INSERT INTO statistiche_categorie (categoria_dashboard, totale)
-            VALUES (?, 0)
-        """, (cat,), commit=True)
+        # Inserisci categorie (Bar, Cucina, Griglia, Gnoccheria)
+        categorie_fisse = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
+        dati_cat = {row["categoria_dashboard"]: row["totale"] for row in stats_categorie}
+        
+        for cat in categorie_fisse:
+            valore = dati_cat.get(cat, 0)
+            cursor.execute("INSERT INTO statistiche_categorie (categoria_dashboard, totale) VALUES (?, ?)", (cat, valore))
 
-    # Inizializza ore da 0 a 23
-    for h in range(24):
-        esegui_query("""
-            INSERT INTO statistiche_ore (ora, totale)
-            VALUES (?, 0)
-        """, (h,), commit=True)
-
-    # Inizializza totali incasso
-    totale_incasso = 0
-    totale_contanti = 0
-    totale_carta = 0
-
-    # Ciclo su tutti gli ordini
-    for ordine in ordini:
-        ordine_id = ordine["id"]
-        metodo = ordine["metodo_pagamento"]
-
-        # Calcola incasso dell'ordine
-        incasso_ordine = esegui_query("""
-            SELECT SUM(p.prezzo * op.quantita) AS totale
-            FROM ordini_prodotti op
-            JOIN prodotti p ON p.id = op.prodotto_id
-            WHERE op.ordine_id = ?
-        """, (ordine_id,), uno=True)["totale"] or 0
-
-        # Somma incasso totale
-        totale_incasso += incasso_ordine
-
-        # Aggiorna incassi contanti/carta
-        if metodo == "Contanti":
-            totale_contanti += incasso_ordine
-        else:
-            totale_carta += incasso_ordine
-
-        # Calcola ora dell'ordine
-        ora = esegui_query("""
-            SELECT CAST(strftime('%H', data_ordine) AS INT) AS h
-            FROM ordini WHERE id = ?
-        """, (ordine_id,), uno=True)["h"]
-
-        # Aggiorna statistiche per ora
-        esegui_query("""
-            UPDATE statistiche_ore
-            SET totale = totale + 1
-            WHERE ora = ?
-        """, (ora,), commit=True)
-
-        # Calcola categorie dashboard coinvolte
-        righe_cat = esegui_query("""
-            SELECT p.categoria_dashboard, SUM(op.quantita) AS qta
-            FROM ordini_prodotti op
-            JOIN prodotti p ON p.id = op.prodotto_id
-            WHERE op.ordine_id = ?
-            GROUP BY p.categoria_dashboard
-        """, (ordine_id,))
-
-        # Aggiorna statistiche categorie
-        for riga in righe_cat:
-            esegui_query("""
-                UPDATE statistiche_categorie
-                SET totale = totale + ?
-                WHERE categoria_dashboard = ?
-            """, (riga["qta"], riga["categoria_dashboard"]), commit=True)
-
-    # Inserisce statistiche totali
-    esegui_query("""
-        INSERT OR REPLACE INTO statistiche_totali
-        (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
-        VALUES (1, ?, ?, ?, ?, ?)
-    """, (
-        ordini_totali,
-        ordini_completati,
-        totale_incasso,
-        totale_contanti,
-        totale_carta
-    ), commit=True)
+        # Inserisci ore (0-23)
+        dati_ore = {row["ora"]: row["totale"] for row in stats_ore}
+        for h in range(24):
+            valore = dati_ore.get(h, 0)
+            cursor.execute("INSERT INTO statistiche_ore (ora, totale) VALUES (?, ?)", (h, valore))
+            
+        conn.commit()
     
     # Notifica aggiornamento globale
     emissione_sicura('aggiorna_dashboard', {})
@@ -378,16 +370,19 @@ def home():
 @accesso_richiesto
 @richiedi_permesso("CASSA")
 def cassa():
-    # Usa GROUP BY per ottenere categorie uniche mantenendo l'ordine originale
-    categorie_righe = esegui_query('SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)')
-    categorie = [riga['categoria_menu'] for riga in categorie_righe]
-
-    # Prodotti per ogni categoria
+    # Ottimizzazione: Recupera tutti i prodotti in un'unica query invece di N+1 query
+    # L'ordinamento per ID garantisce che l'ordine delle categorie rispetti la logica originale (MIN(id))
+    tutti_prodotti = esegui_query('SELECT * FROM prodotti ORDER BY id')
+    
+    categorie = []
     prodotti_per_categoria = {}
-    for cat in categorie:
-        prodotti_per_categoria[cat] = esegui_query(
-            'SELECT * FROM prodotti WHERE categoria_menu = ?', (cat,)
-        )
+    
+    for p in tutti_prodotti:
+        cat = p['categoria_menu']
+        if cat not in prodotti_per_categoria:
+            categorie.append(cat)
+            prodotti_per_categoria[cat] = []
+        prodotti_per_categoria[cat].append(p)
 
     return render_template(
         'cassa.html',
@@ -573,7 +568,6 @@ def cambia_stato():
             timer_attivi[chiave_timer]["annulla"] = True
             timer_attivi.pop(chiave_timer, None)
 
-        #socketio.sleep(0.1)  # Piccolo delay per sicurezza
         id_timer = str(uuid.uuid4())  # ID univoco per questo timer
         timer_attivi[chiave_timer] = {"annulla": False, "id": id_timer}
         socketio.start_background_task(cambia_stato_automatico, id_ordine, categoria, id_timer)
@@ -1121,7 +1115,7 @@ def aggiungi_utente():
                 return jsonify({"errore": "Username già in uso"}), 400
 
             # Hash password
-            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=4)).decode()
 
             # Inserisci utente
             cursore.execute("""
@@ -1169,7 +1163,7 @@ def modifica_utente():
 
             # Aggiorna utente
             if password:
-                password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=4)).decode()
                 cursore.execute("""
                     UPDATE utenti
                     SET username = ?, password_hash = ?, is_admin = ?, attivo = ?
