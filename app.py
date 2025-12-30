@@ -31,7 +31,7 @@ with app.app_context():
 def forbidden_error(error):
     return "403 Forbidden", 403
 
-socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*", logger=False, engineio_logger=False)
+socketio = SocketIO(app, cors_allowed_origins="*", logger=False, engineio_logger=False)
 
 # --- UTILITY DATABASE ---
 
@@ -384,10 +384,13 @@ def cassa():
             prodotti_per_categoria[cat] = []
         prodotti_per_categoria[cat].append(p)
 
+    last_order_id = request.args.get('last_order_id')
+
     return render_template(
         'cassa.html',
         categorie=categorie,
-        prodotti_per_categoria=prodotti_per_categoria
+        prodotti_per_categoria=prodotti_per_categoria,
+        last_order_id=last_order_id
     )
 
 @app.route('/aggiungi_ordine/', methods=['POST'])
@@ -574,18 +577,11 @@ def cambia_stato():
         print(f"[AUTO] Timer avviato per ordine {id_ordine} ({categoria}) → {id_timer}")
 
     # Ricarica ordini aggiornati per quella categoria
-    ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(categoria)
-    html_non_completati = render_template(
-        'partials/_ordini.html', ordini=ordini_non_completati, category=categoria
-    )
-    html_completati = render_template(
-        'partials/_ordini.html', ordini=ordini_completati, category=categoria, completati=True
-    )
-
+    # OTTIMIZZAZIONE: Non ricalcoliamo tutto l'HTML qui. Il frontend fa update ottimistico
+    # e poi riceverà l'evento socket per la consistenza finale.
+    
     return jsonify({
-        "nuovo_stato": nuovo_stato,
-        "html_non_completati": html_non_completati,
-        "html_completati": html_completati
+        "nuovo_stato": nuovo_stato
     })
 
 # --- ROUTES: AMMINISTRAZIONE ---
@@ -1364,5 +1360,6 @@ if __name__ == '__main__':
     finally:
         s.close()
     print(f'Avvio server — apri: http://{ip}:8000/')
+    print(f'Modalità async: {socketio.async_mode}')
     debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
     socketio.run(app, host='0.0.0.0', port=8000, debug=debug_mode)

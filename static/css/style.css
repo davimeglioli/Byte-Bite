@@ -1599,6 +1599,11 @@ input:checked ~ .stato-label {
     stroke-width: 2;
 }
 
+#modaleConfermaOrdine .icona-attenzione {
+    background-color: #E5FFF0;
+    color: #0A8031;
+}
+
 /* --- CLASSI DI UTILITÀ (JS) --- */
 .nascosto {
     display: none !important;

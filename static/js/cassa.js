@@ -191,6 +191,28 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    const modaleConfermaOrdine = document.getElementById("modaleConfermaOrdine");
+    const numeroOrdineConfermato = document.getElementById("numeroOrdineConfermato");
+    const btnChiudiConfermaOrdine = document.getElementById("btnChiudiConfermaOrdine");
+    const lastOrderId = document.body.getAttribute("data-last-order-id");
+
+    if (lastOrderId && modaleConfermaOrdine && numeroOrdineConfermato) {
+        numeroOrdineConfermato.textContent = lastOrderId;
+        modaleConfermaOrdine.classList.add("attivo");
+    }
+
+    if (btnChiudiConfermaOrdine && modaleConfermaOrdine) {
+        btnChiudiConfermaOrdine.addEventListener("click", () => {
+            modaleConfermaOrdine.classList.remove("attivo");
+        });
+
+        modaleConfermaOrdine.addEventListener("click", (e) => {
+            if (e.target === modaleConfermaOrdine) {
+                modaleConfermaOrdine.classList.remove("attivo");
+            }
+        });
+    }
 });
 
 let lastTouchEnd = 0;

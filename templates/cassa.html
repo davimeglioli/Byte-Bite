@@ -19,7 +19,7 @@
         <p>Sagra Natività della Beata Vergine Maria</p>
     </header>
 
-    <body>
+    <body data-last-order-id="{{ last_order_id or '' }}">
         <section class="contenitore">
             <section class="menu-laterale">
                 <div class="nav-wrapper">
@@ -105,7 +105,27 @@
                 </form>
             </section>
         </section>
-        
+
+        <div class="modale-overlay" id="modaleConfermaOrdine">
+            <div class="modale-finestra">
+                <div class="icona-attenzione">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                </div>
+                <h3 class="modale-titolo">Ordine inviato</h3>
+                <p class="modale-testo">
+                    Il tuo ordine è stato inviato.
+                    <br>
+                    Numero ordine: <strong id="numeroOrdineConfermato">...</strong>
+                </p>
+                <div class="modale-azioni">
+                    <button type="button" class="btn-modale btn-conferma" id="btnChiudiConfermaOrdine">Ok</button>
+                </div>
+            </div>
+        </div>
+
         <script src="{{ url_for('static', filename='js/cassa.js') }}"></script>
     </body>
 </html>
