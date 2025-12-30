@@ -3,7 +3,8 @@ import random
 import json
 
 class CashierUser(HttpUser):
-    wait_time = between(1, 3)
+    # Stress test aggressivo: attesa tra 0.1 e 0.5 secondi
+    wait_time = between(0.1, 0.5)
 
     def on_start(self):
         """Esegue il login come cassiere all'avvio."""
@@ -20,8 +21,8 @@ class CashierUser(HttpUser):
         # Nota: In un ambiente reale, dovremmo prima recuperare gli ID dei prodotti disponibili.
         # Qui assumiamo che esistano prodotti con ID bassi o gestiamo l'errore lato server.
         products = [
-            {"id": 1, "quantita": 1, "nome": "Caffè Load Test"},
-            {"id": 2, "quantita": 2, "nome": "Pasta Load Test"}
+            {"id": 1, "quantita": 1, "nome": "Spritz Aperol"},
+            {"id": 2, "quantita": 2, "nome": "Spritz Campari"}
         ]
         
         data = {
@@ -37,7 +38,8 @@ class CashierUser(HttpUser):
         self.client.post("/aggiungi_ordine/", data=data)
 
 class DashboardUser(HttpUser):
-    wait_time = between(2, 5)
+    # Anche le dashboard refreshano spesso
+    wait_time = between(0.5, 2)
     
     def on_start(self):
         """Esegue il login come admin per vedere le dashboard."""
