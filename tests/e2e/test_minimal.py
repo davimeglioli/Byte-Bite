@@ -1,7 +1,10 @@
-from playwright.sync_api import Page
+from playwright.sync_api import expect
 
-def test_minimal(page: Page, base_url):
-    print(f"DEBUG: Base URL is {base_url}")
-    print("DEBUG: Navigating")
-    page.goto(f"{base_url}/")
-    print("DEBUG: Done")
+# ==================== Navigazione ====================
+
+
+def test_home_risponde(pagina, url_base):
+    # Naviga alla home dell'app.
+    pagina.goto(f"{url_base}/")
+    # Verifica che il body sia visibile.
+    expect(pagina.locator("body")).to_be_visible()

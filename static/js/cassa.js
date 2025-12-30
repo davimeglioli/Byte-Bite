@@ -1,171 +1,202 @@
-//bisogna disabilitare i tasti del summaty anche quando si raggiunge la quantita massima
+// ==================== Cassa ====================
+// Gestisce: categorie, carrello, validazione ordine e modale conferma.
 
 document.addEventListener("DOMContentLoaded", () => {
-
-    // Gestione tabs categorie
-    const tabs = document.querySelectorAll(".linguetta");
-    const productSections = document.querySelectorAll(".prodotti");
+    // ==================== Categorie (linguette) ====================
+    const linguetteCategorie = document.querySelectorAll(".linguetta");
+    const sezioniProdotti = document.querySelectorAll(".prodotti");
 
     function mostraCategoria(nomeCategoria) {
-        productSections.forEach(sezione => sezione.classList.remove("attivi"));
+        // Nasconde tutte le sezioni e mostra solo quella selezionata.
+        sezioniProdotti.forEach((sezione) => sezione.classList.remove("attivi"));
+
         const sezioneDaMostrare = document.querySelector(`.prodotti[data-categoria="${nomeCategoria}"]`);
         if (sezioneDaMostrare) sezioneDaMostrare.classList.add("attivi");
 
-        tabs.forEach(tab => {
-            tab.classList.toggle("attiva", tab.dataset.categoria === nomeCategoria);
+        // Aggiorna lo stato grafico delle linguette.
+        linguetteCategorie.forEach((linguetta) => {
+            linguetta.classList.toggle("attiva", linguetta.dataset.categoria === nomeCategoria);
         });
     }
 
-    if (tabs.length > 0) mostraCategoria(tabs[0].dataset.categoria);
+    // Prima categoria attiva di default.
+    if (linguetteCategorie.length > 0) mostraCategoria(linguetteCategorie[0].dataset.categoria);
 
-    tabs.forEach(tab => {
-        tab.addEventListener("click", () => mostraCategoria(tab.dataset.categoria));
+    // Cambio categoria al click.
+    linguetteCategorie.forEach((linguetta) => {
+        linguetta.addEventListener("click", () => mostraCategoria(linguetta.dataset.categoria));
     });
 
-
-    // Gestione carrello e riepilogo
+    // ==================== Carrello e riepilogo ====================
     const carrello = [];
-    const riepilogo = document.querySelector(".contenitore-lista-ordine");
+    const contenitoreRiepilogo = document.querySelector(".contenitore-lista-ordine");
     const totaleElemento = document.querySelector(".totale-carrello h2:last-child");
     const campoProdotti = document.getElementById("prodotti-json");
 
     function aggiornaRiepilogo() {
-        riepilogo.innerHTML = "";
+        // Rigenera completamente la lista riepilogo e ricalcola il totale.
+        contenitoreRiepilogo.innerHTML = "";
         let totale = 0;
 
-        carrello.forEach(item => {
-            const subtotale = item.prezzo * item.quantita;
+        carrello.forEach((prodotto) => {
+            // Somma e mostra subtotale prodotto.
+            const subtotale = prodotto.prezzo * prodotto.quantita;
             totale += subtotale;
 
-            const div = document.createElement("div");
-            div.classList.add("articolo-carrello");
-            div.innerHTML = `
-                <h5>${item.nome}</h5>
+            // Crea riga prodotto nel riepilogo.
+            const riga = document.createElement("div");
+            riga.classList.add("articolo-carrello");
+            riga.innerHTML = `
+                <h5>${prodotto.nome}</h5>
                 <div class="controlli-articolo">
-                    <button class="tasto-diminuisci" data-id="${item.id}">-</button>
-                    <p>${item.quantita}</p>
-                    <button class="tasto-aumenta" data-id="${item.id}">+</button>
-                    <button class="tasto-rimuovi" data-id="${item.id}">×</button>
+                    <button class="tasto-diminuisci" data-id="${prodotto.id}">-</button>
+                    <p>${prodotto.quantita}</p>
+                    <button class="tasto-aumenta" data-id="${prodotto.id}">+</button>
+                    <button class="tasto-rimuovi" data-id="${prodotto.id}">×</button>
                     <p>€${subtotale.toFixed(2)}</p>
                 </div>
             `;
-            riepilogo.appendChild(div);
+            contenitoreRiepilogo.appendChild(riga);
         });
 
+        // Aggiorna totale e campo hidden per l'invio al backend.
         totaleElemento.textContent = `€${totale.toFixed(2)}`;
         campoProdotti.value = JSON.stringify(carrello);
+
+        // Sincronizza i contatori e lo stato dei pulsanti nelle card.
         aggiornaQuantitaProdotti();
     }
 
     function aggiungiProdotto(id, nome, prezzo, maxDisponibile) {
-        const esistente = carrello.find(p => p.id === id);
+        // Aumenta quantità se già presente, altrimenti inserisce una nuova riga nel carrello.
+        const esistente = carrello.find((p) => p.id === id);
+
         if (esistente) {
             if (esistente.quantita < maxDisponibile) esistente.quantita++;
         } else {
             carrello.push({ id, nome, prezzo, quantita: 1 });
         }
+
         aggiornaRiepilogo();
     }
 
     function rimuoviProdotto(id) {
-        const index = carrello.findIndex(p => p.id === id);
-        if (index !== -1) {
-            carrello[index].quantita--;
-            if (carrello[index].quantita <= 0) carrello.splice(index, 1);
+        // Riduce la quantità; se arriva a 0 rimuove la riga dal carrello.
+        const indice = carrello.findIndex((p) => p.id === id);
+        if (indice !== -1) {
+            carrello[indice].quantita--;
+            if (carrello[indice].quantita <= 0) carrello.splice(indice, 1);
         }
+
         aggiornaRiepilogo();
     }
 
-    document.addEventListener("click", (e) => {
-        // Gestione pulsanti nelle card
-        if (e.target.classList.contains("tasto-piu")) {
-            const prodottoDiv = e.target.closest(".prodotto");
+    // Event delegation: gestisce click su card prodotto e riepilogo.
+    document.addEventListener("click", (evento) => {
+        // ==================== Pulsanti nelle card prodotto ====================
+        if (evento.target.classList.contains("tasto-piu")) {
+            const prodottoDiv = evento.target.closest(".prodotto");
             const id = parseInt(prodottoDiv.dataset.id);
             const nome = prodottoDiv.querySelector("h4").textContent;
             const prezzo = parseFloat(prodottoDiv.dataset.prezzo);
             const maxDisponibile = parseInt(prodottoDiv.dataset.quantita);
+
             aggiungiProdotto(id, nome, prezzo, maxDisponibile);
         }
 
-        if (e.target.classList.contains("tasto-meno")) {
-            const prodottoDiv = e.target.closest(".prodotto");
+        if (evento.target.classList.contains("tasto-meno")) {
+            const prodottoDiv = evento.target.closest(".prodotto");
             const id = parseInt(prodottoDiv.dataset.id);
             rimuoviProdotto(id);
         }
 
-        // Gestione pulsanti nel riepilogo
-        if (e.target.classList.contains("tasto-aumenta")) {
-            const id = parseInt(e.target.dataset.id);
-            const item = carrello.find(p => p.id === id);
+        // ==================== Pulsanti nel riepilogo ====================
+        if (evento.target.classList.contains("tasto-aumenta")) {
+            const id = parseInt(evento.target.dataset.id);
+            const prodottoCarrello = carrello.find((p) => p.id === id);
+
+            // Limite massimo ricavato dalla card prodotto (se presente).
             const prodottoDiv = document.querySelector(`.prodotto[data-id="${id}"]`);
             const maxDisponibile = prodottoDiv ? parseInt(prodottoDiv.dataset.quantita) : Infinity;
-            if (item && item.quantita < maxDisponibile) {
-                item.quantita++;
+
+            if (prodottoCarrello && prodottoCarrello.quantita < maxDisponibile) {
+                prodottoCarrello.quantita++;
                 aggiornaRiepilogo();
             }
         }
 
-        if (e.target.classList.contains("tasto-diminuisci")) {
-            const id = parseInt(e.target.dataset.id);
+        if (evento.target.classList.contains("tasto-diminuisci")) {
+            const id = parseInt(evento.target.dataset.id);
             rimuoviProdotto(id);
         }
 
-        if (e.target.classList.contains("tasto-rimuovi")) {
-            const id = parseInt(e.target.dataset.id);
-            const index = carrello.findIndex(p => p.id === id);
-            if (index !== -1) carrello.splice(index, 1);
+        if (evento.target.classList.contains("tasto-rimuovi")) {
+            const id = parseInt(evento.target.dataset.id);
+            const indice = carrello.findIndex((p) => p.id === id);
+
+            if (indice !== -1) carrello.splice(indice, 1);
             aggiornaRiepilogo();
         }
     });
 
     function aggiornaQuantitaProdotti() {
-        document.querySelectorAll(".prodotto").forEach(prodottoDiv => {
+        // Sincronizza quantità e abilitazione pulsanti per ogni card prodotto.
+        document.querySelectorAll(".prodotto").forEach((prodottoDiv) => {
             const id = parseInt(prodottoDiv.dataset.id);
-            const prodottoCarrello = carrello.find(p => p.id === id);
-            const quantityElement = prodottoDiv.querySelector(".selettore-quantita p");
-            const btnPlus = prodottoDiv.querySelector(".tasto-piu");
-            const btnMinus = prodottoDiv.querySelector(".tasto-meno");
+            const prodottoCarrello = carrello.find((p) => p.id === id);
+
+            const testoQuantita = prodottoDiv.querySelector(".selettore-quantita p");
+            const btnPiu = prodottoDiv.querySelector(".tasto-piu");
+            const btnMeno = prodottoDiv.querySelector(".tasto-meno");
             const maxDisponibile = parseInt(prodottoDiv.dataset.quantita);
 
             if (prodottoCarrello) {
-                quantityElement.textContent = prodottoCarrello.quantita;
+                // Prodotto presente: mostra quantità e aggiorna stile selezionato.
+                testoQuantita.textContent = prodottoCarrello.quantita;
                 prodottoDiv.classList.add("prodotto-selezionato");
-                btnPlus.disabled = prodottoCarrello.quantita >= maxDisponibile;
-                btnMinus.disabled = prodottoCarrello.quantita <= 0;
-                const riepilogoPlus  = document.querySelector(`.tasto-aumenta[data-id="${id}"]`);
-                const riepilogoMinus = document.querySelector(`.tasto-diminuisci[data-id="${id}"]`);
 
-                if (riepilogoPlus)  riepilogoPlus.disabled  = prodottoCarrello.quantita >= maxDisponibile;
-                if (riepilogoMinus) riepilogoMinus.disabled = prodottoCarrello.quantita <= 1;
+                // Disabilita + quando si raggiunge il massimo.
+                btnPiu.disabled = prodottoCarrello.quantita >= maxDisponibile;
+                btnMeno.disabled = prodottoCarrello.quantita <= 0;
+
+                // Disabilita anche i pulsanti nel riepilogo (se esistono).
+                const riepilogoPiu = document.querySelector(`.tasto-aumenta[data-id="${id}"]`);
+                const riepilogoMeno = document.querySelector(`.tasto-diminuisci[data-id="${id}"]`);
+
+                if (riepilogoPiu) riepilogoPiu.disabled = prodottoCarrello.quantita >= maxDisponibile;
+                if (riepilogoMeno) riepilogoMeno.disabled = prodottoCarrello.quantita <= 1;
             } else {
-                quantityElement.textContent = 0;
+                // Prodotto assente: reset UI della card.
+                testoQuantita.textContent = 0;
                 prodottoDiv.classList.remove("prodotto-selezionato");
-                btnPlus.disabled = false;
-                btnMinus.disabled = true;
+
+                btnPiu.disabled = false;
+                btnMeno.disabled = true;
             }
 
-            [btnPlus, btnMinus].forEach(btn => {
-                btn.style.opacity = btn.disabled ? "0.5" : "1";
-                btn.style.cursor = btn.disabled ? "not-allowed" : "pointer";
+            // Feedback visivo pulsanti disabilitati.
+            [btnPiu, btnMeno].forEach((bottone) => {
+                bottone.style.opacity = bottone.disabled ? "0.5" : "1";
+                bottone.style.cursor = bottone.disabled ? "not-allowed" : "pointer";
             });
         });
     }
 
-    // Esegui inizializzazione al caricamento
+    // Inizializzazione UI carrello.
     aggiornaQuantitaProdotti();
 
-
-    // Gestione ordini e asporto
+    // ==================== Asporto / tavolo / persone ====================
     const checkboxAsporto = document.getElementById("checkbox-asporto");
-    const tavoloWrapper = document.getElementById("contenitore-tavolo");
-    const personeWrapper = document.getElementById("contenitore-persone");
+    const wrapperTavolo = document.getElementById("contenitore-tavolo");
+    const wrapperPersone = document.getElementById("contenitore-persone");
     const campoTavolo = document.getElementById("numero-tavolo");
     const campoPersone = document.getElementById("numero-persone");
 
     function aggiornaVisibilitaCampi() {
+        // Se asporto è selezionato, nasconde i campi tavolo/persone e rimuove required.
         const asporto = checkboxAsporto.checked;
-        tavoloWrapper.style.display = asporto ? "none" : "block";
-        personeWrapper.style.display = asporto ? "none" : "block";
+        wrapperTavolo.style.display = asporto ? "none" : "block";
+        wrapperPersone.style.display = asporto ? "none" : "block";
 
         if (asporto) {
             campoTavolo.removeAttribute("required");
@@ -178,12 +209,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Aggiorna UI al cambio checkbox e al caricamento.
     checkboxAsporto.addEventListener("change", aggiornaVisibilitaCampi);
     aggiornaVisibilitaCampi();
 
-    // Validazione form ordine
+    // ==================== Validazione invio ordine ====================
     const formOrdine = document.querySelector(".riepilogo-carrello form");
     if (formOrdine) {
+        // Impedisce invio se il carrello è vuoto.
         formOrdine.addEventListener("submit", (e) => {
             if (carrello.length === 0) {
                 e.preventDefault();
@@ -192,9 +225,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // ==================== Modale conferma ordine ====================
     const modaleConfermaOrdine = document.getElementById("modaleConfermaOrdine");
     const numeroOrdineConfermato = document.getElementById("numeroOrdineConfermato");
     const btnChiudiConfermaOrdine = document.getElementById("btnChiudiConfermaOrdine");
+
+    // L'id ultimo ordine viene passato dal backend come attributo sul body.
     const lastOrderId = document.body.getAttribute("data-last-order-id");
 
     if (lastOrderId && modaleConfermaOrdine && numeroOrdineConfermato) {
@@ -203,10 +239,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (btnChiudiConfermaOrdine && modaleConfermaOrdine) {
+        // Chiude con click sul bottone.
         btnChiudiConfermaOrdine.addEventListener("click", () => {
             modaleConfermaOrdine.classList.remove("attivo");
         });
 
+        // Chiude cliccando fuori dalla finestra.
         modaleConfermaOrdine.addEventListener("click", (e) => {
             if (e.target === modaleConfermaOrdine) {
                 modaleConfermaOrdine.classList.remove("attivo");
@@ -215,6 +253,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// ==================== Touch (legacy) ====================
+// Codice lasciato per compatibilità con comportamenti touch precedenti.
 let lastTouchEnd = 0;
-document.removeEventListener('touchend', function(){});
-document.removeEventListener('touchmove', function(){});
+document.removeEventListener("touchend", function () {});
+document.removeEventListener("touchmove", function () {});

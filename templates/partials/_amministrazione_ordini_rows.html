@@ -1,5 +1,5 @@
 {% for ordine in ordini %}
-<tr class="riga-ordine" data-id="{{ ordine['id'] }}">
+  <tr class="riga-ordine" data-id="{{ ordine['id'] }}">
     <td>{{ ordine['id'] }}</td>
     <td>{{ ordine['nome_cliente'] }}</td>
     <td>{{ ordine['numero_tavolo'] if ordine['numero_tavolo'] else '-' }}</td>
@@ -8,13 +8,15 @@
     <td>{{ ordine['metodo_pagamento'] }}</td>
     <td>{{ "%.2f"|format(ordine['totale']) }} €</td>
     <td>
-        <button class="bottone-modifica" onclick="apriModaleModificaOrdine(this)">✎</button>
-        <button class="bottone-cancella" data-id="{{ ordine['id'] }}" onclick="apriModaleEliminaOrdine(this)">✕</button>
+      <button class="bottone-modifica" onclick="apriModaleModificaOrdine(this)">✎</button>
+      <button class="bottone-cancella" data-id="{{ ordine['id'] }}" onclick="apriModaleEliminaOrdine(this)">
+        ✕
+      </button>
     </td>
     <td>
-        <button class="bottone-espandi" data-id="{{ ordine['id'] }}" onclick="toggleDettagli(this)">
-            <span class="espandi"></span>
-        </button>
+      <button class="bottone-espandi" data-id="{{ ordine['id'] }}" onclick="toggleDettagli(this)">
+        <span class="espandi"></span>
+      </button>
     </td>
-</tr>
+  </tr>
 {% endfor %}

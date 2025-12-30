@@ -1,58 +1,66 @@
 {% for utente in utenti %}
-<tr>
+  <tr>
     <td>{{ utente['id'] }}</td>
     <td>{{ utente['username'] }}</td>
     <td>
-        {% if utente['is_admin'] %}
-            <span class="badge-ruolo admin">Admin</span>
-        {% else %}
-            <span class="badge-ruolo user">Utente</span>
-        {% endif %}
+      {% if utente['is_admin'] %}
+        <span class="badge-ruolo admin">Admin</span>
+      {% else %}
+        <span class="badge-ruolo user">Utente</span>
+      {% endif %}
     </td>
     <td>
-        {% if utente['attivo'] %}
-            <span class="stato-attivo">Attivo</span>
-        {% else %}
-            <span class="stato-inattivo">Disattivo</span>
-        {% endif %}
-    </td>
-    
-    {# Amministrazione #}
-    <td class="text-center">
-        {% if 'AMMINISTRAZIONE' in utente['permessi'] %}
-            <span class="permesso-si">Sì</span>
-        {% else %}
-            <span class="permesso-no">No</span>
-        {% endif %}
+      {% if utente['attivo'] %}
+        <span class="stato-attivo">Attivo</span>
+      {% else %}
+        <span class="stato-inattivo">Disattivo</span>
+      {% endif %}
     </td>
 
-    {# Cassa #}
     <td class="text-center">
-        {% if 'CASSA' in utente['permessi'] %}
-            <span class="permesso-si">Sì</span>
-        {% else %}
-            <span class="permesso-no">No</span>
-        {% endif %}
+      {% if 'AMMINISTRAZIONE' in utente['permessi'] %}
+        <span class="permesso-si">Sì</span>
+      {% else %}
+        <span class="permesso-no">No</span>
+      {% endif %}
     </td>
 
-    {# Dashboard #}
     <td class="text-center">
-        {% if 'DASHBOARD' in utente['permessi'] %}
-            <span class="permesso-si">Sì</span>
-        {% else %}
-            <span class="permesso-no">No</span>
-        {% endif %}
+      {% if 'CASSA' in utente['permessi'] %}
+        <span class="permesso-si">Sì</span>
+      {% else %}
+        <span class="permesso-no">No</span>
+      {% endif %}
+    </td>
+
+    <td class="text-center">
+      {% if 'DASHBOARD' in utente['permessi'] %}
+        <span class="permesso-si">Sì</span>
+      {% else %}
+        <span class="permesso-no">No</span>
+      {% endif %}
     </td>
 
     <td>
-        <button class="bottone-modifica" 
-            data-id="{{ utente['id'] }}"
-            data-username="{{ utente['username'] }}"
-            data-is-admin="{{ 1 if utente['is_admin'] else 0 }}"
-            data-attivo="{{ 1 if utente['attivo'] else 0 }}"
-            data-permessi="{{ utente['permessi'] | join(',') }}"
-            onclick="apriModaleModificaUtente(this)">✎</button>
-        <button class="bottone-cancella" data-id="{{ utente['id'] }}" data-username="{{ utente['username'] }}" onclick="apriModaleEliminaUtente(this)">✕</button>
+      <button
+        class="bottone-modifica"
+        data-id="{{ utente['id'] }}"
+        data-username="{{ utente['username'] }}"
+        data-is-admin="{{ 1 if utente['is_admin'] else 0 }}"
+        data-attivo="{{ 1 if utente['attivo'] else 0 }}"
+        data-permessi="{{ utente['permessi'] | join(',') }}"
+        onclick="apriModaleModificaUtente(this)"
+      >
+        ✎
+      </button>
+      <button
+        class="bottone-cancella"
+        data-id="{{ utente['id'] }}"
+        data-username="{{ utente['username'] }}"
+        onclick="apriModaleEliminaUtente(this)"
+      >
+        ✕
+      </button>
     </td>
-</tr>
+  </tr>
 {% endfor %}

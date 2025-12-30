@@ -1,5 +1,8 @@
 {% for prodotto in prodotti %}
-<tr data-categoria="{{ prodotto['categoria_menu'] }}" class="{% if prima_categoria and prodotto['categoria_menu'] != prima_categoria %}nascosto{% endif %}">
+  <tr
+    data-categoria="{{ prodotto['categoria_menu'] }}"
+    class="{% if prima_categoria and prodotto['categoria_menu'] != prima_categoria %}nascosto{% endif %}"
+  >
     <td>{{ prodotto['id'] }}</td>
     <td>{{ prodotto['nome'] }}</td>
     <td>{{ prodotto['categoria_dashboard'] }}</td>
@@ -8,18 +11,28 @@
     <td>{{ prodotto['quantita'] }}</td>
     <td>{{ prodotto['venduti'] }}</td>
     <td>
-        <button class="bottone-rifornimento" onclick="apriModaleRifornimento('{{ prodotto.id }}', '{{ prodotto.nome }}')">+</button>
-        <button class="bottone-modifica" 
-            data-id="{{ prodotto['id'] }}"
-            data-nome="{{ prodotto['nome'] }}"
-            data-cat="{{ prodotto['categoria_dashboard'] }}"
-            data-qta="{{ prodotto['quantita'] }}"
-            data-disp="{{ 1 if prodotto['disponibile'] else 0 }}"
-            onclick="apriModaleModifica(this)">✎</button>
-        <button class="bottone-cancella"
-            data-id="{{ prodotto['id'] }}"
-            data-nome="{{ prodotto['nome'] }}"
-            onclick="apriModaleElimina(this)">✕</button>
+      <button class="bottone-rifornimento" onclick="apriModaleRifornimento('{{ prodotto.id }}', '{{ prodotto.nome }}')">
+        +
+      </button>
+      <button
+        class="bottone-modifica"
+        data-id="{{ prodotto['id'] }}"
+        data-nome="{{ prodotto['nome'] }}"
+        data-cat="{{ prodotto['categoria_dashboard'] }}"
+        data-qta="{{ prodotto['quantita'] }}"
+        data-disp="{{ 1 if prodotto['disponibile'] else 0 }}"
+        onclick="apriModaleModifica(this)"
+      >
+        ✎
+      </button>
+      <button
+        class="bottone-cancella"
+        data-id="{{ prodotto['id'] }}"
+        data-nome="{{ prodotto['nome'] }}"
+        onclick="apriModaleElimina(this)"
+      >
+        ✕
+      </button>
     </td>
-</tr>
+  </tr>
 {% endfor %}

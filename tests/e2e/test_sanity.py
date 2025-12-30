@@ -1,8 +1,10 @@
-from playwright.sync_api import Page, expect
+from playwright.sync_api import expect
 
-def test_google(page: Page):
-    print("DEBUG: Navigating to google")
-    page.goto("https://www.google.com")
-    print("DEBUG: Checking title")
-    expect(page).to_have_title("Google")
-    print("DEBUG: Done")
+# ==================== Sanity ====================
+
+
+def test_titolo_google(pagina):
+    # Naviga verso Google.
+    pagina.goto("https://www.google.com")
+    # Verifica il titolo della pagina.
+    expect(pagina).to_have_title("Google")

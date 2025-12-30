@@ -1,107 +1,118 @@
-const socket = io({
+// ==================== Dashboard ====================
+// Gestisce: socket realtime, cambio stato ordine e refresh parziale HTML.
+
+// Connessione socket: usa solo websocket per ridurre latenza e fallback.
+const socketIo = io({
     transports: ["websocket"],
-    upgrade: false
-}); // Connessione al socket
- 
-// Prende la categoria dal titolo (es. "Dashboard Cucina")
+    upgrade: false,
+});
+
+// Legge la categoria corrente dal titolo (es. "Dashboard Cucina").
 const categoriaCorrente = document
     .querySelector("h2")
     .textContent
     .replace("Dashboard ", "")
     .trim();
 
-// Mi unisco alla stanza
-socket.emit("join", { categoria: categoriaCorrente });
+// Si iscrive alla stanza della categoria.
+socketIo.emit("join", { categoria: categoriaCorrente });
 
-// Quando il server invia un aggiornamento in tempo reale, aggiorno la dashboard
-socket.on("aggiorna_dashboard", (data) => {
-    if (data.categoria === categoriaCorrente) {
+// Aggiornamento realtime: quando arriva un evento, ricarica solo la categoria corrente.
+socketIo.on("aggiorna_dashboard", (dati) => {
+    if (dati.categoria === categoriaCorrente) {
         aggiornaDashboard();
     }
 });
 
-function cambiaStato(button) {
-    const ordine_id = button.dataset.id;
-    const categoria = button.dataset.categoria;
-    const currentState = button.dataset.status;
+function cambiaStato(bottone) {
+    // Legge parametri necessari dal DOM.
+    const ordine_id = bottone.dataset.id;
+    const categoria = bottone.dataset.categoria;
+    const statoAttuale = bottone.dataset.status;
 
-    // --- OPTIMISTIC UI UPDATE ---
-    // Calcoliamo subito il prossimo stato per aggiornare l'interfaccia istantaneamente
+    // Calcola subito il prossimo stato per aggiornare la UI istantaneamente.
     const stati = ["In Attesa", "In Preparazione", "Pronto", "Completato"];
-    const idx = stati.indexOf(currentState);
-    let nextState = currentState;
-    
-    // Logica di avanzamento stato (replica quella del server)
-    if (idx !== -1 && idx < stati.length - 1) {
-        nextState = stati[idx + 1];
-    } else if (currentState === "Pronto") {
-        // Se era pronto, il server potrebbe resettarlo a In Preparazione se c'è un timer,
-        // ma per ora assumiamo il flusso normale o lasciamo che il server corregga.
-        // Qui gestiamo il caso base.
+    const indiceStato = stati.indexOf(statoAttuale);
+
+    let statoSuccessivo = statoAttuale;
+    if (indiceStato !== -1 && indiceStato < stati.length - 1) {
+        statoSuccessivo = stati[indiceStato + 1];
     }
 
-    // Salviamo lo stato originale per eventuale rollback
-    const originalText = button.textContent;
-    const originalStatus = button.dataset.status;
+    // Salva valori originali per eventuale rollback.
+    const testoOriginale = bottone.textContent;
+    const statoOriginale = bottone.dataset.status;
 
-    // Aggiorniamo subito il bottone
-    button.textContent = nextState;
-    button.dataset.status = nextState;
+    // Applica l'update ottimistico sul bottone.
+    bottone.textContent = statoSuccessivo;
+    bottone.dataset.status = statoSuccessivo;
 
-    // Aggiorniamo anche la card (per stile e opacità se completato)
-    const card = button.closest('.scheda-ordine');
-    if (card) {
-        card.dataset.status = nextState;
-        if (nextState === "Completato") {
-            // Feedback visivo immediato di completamento
-            card.style.opacity = "0.5";
-            card.style.pointerEvents = "none";
+    // Applica l'update ottimistico anche sulla card.
+    const schedaOrdine = bottone.closest(".scheda-ordine");
+    if (schedaOrdine) {
+        schedaOrdine.dataset.status = statoSuccessivo;
+
+        // Se completato, disabilita interazioni e abbassa opacità.
+        if (statoSuccessivo === "Completato") {
+            schedaOrdine.style.opacity = "0.5";
+            schedaOrdine.style.pointerEvents = "none";
         }
     }
 
+    // Invia la richiesta al backend per confermare lo stato.
     fetch("/cambia_stato/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ordine_id, categoria })
+        body: JSON.stringify({ ordine_id, categoria }),
     })
-        .then(res => res.json())
-        .then(data => {
-            // Il server ora risponderà solo con il nuovo stato, senza tutto l'HTML.
-            // La dashboard si aggiornerà completamente via socket poco dopo.
-            
-            // Se il server ci corregge lo stato (es. logica timer o altro), aggiorniamo
-            if (data.nuovo_stato && data.nuovo_stato !== nextState) {
-                 button.textContent = data.nuovo_stato;
-                 button.dataset.status = data.nuovo_stato;
-                 if (card) {
-                     card.dataset.status = data.nuovo_stato;
-                     if (data.nuovo_stato !== "Completato") {
-                         card.style.opacity = "";
-                         card.style.pointerEvents = "";
-                     }
-                 }
+        .then((res) => res.json())
+        .then((datiRisposta) => {
+            // Il backend può correggere lo stato (es. logiche timer).
+            if (datiRisposta.nuovo_stato && datiRisposta.nuovo_stato !== statoSuccessivo) {
+                bottone.textContent = datiRisposta.nuovo_stato;
+                bottone.dataset.status = datiRisposta.nuovo_stato;
+
+                if (schedaOrdine) {
+                    schedaOrdine.dataset.status = datiRisposta.nuovo_stato;
+
+                    // Se non è completato, ripristina interazioni.
+                    if (datiRisposta.nuovo_stato !== "Completato") {
+                        schedaOrdine.style.opacity = "";
+                        schedaOrdine.style.pointerEvents = "";
+                    }
+                }
             }
         })
-        .catch(err => {
-            console.error("Errore:", err);
-            // ROLLBACK in caso di errore
-            button.textContent = originalText;
-            button.dataset.status = originalStatus;
-            if (card) {
-                card.dataset.status = originalStatus;
-                card.style.opacity = "";
-                card.style.pointerEvents = "";
+        .catch((errore) => {
+            // Se fallisce, ripristina lo stato originale (rollback).
+            console.error("Errore:", errore);
+
+            bottone.textContent = testoOriginale;
+            bottone.dataset.status = statoOriginale;
+
+            if (schedaOrdine) {
+                schedaOrdine.dataset.status = statoOriginale;
+                schedaOrdine.style.opacity = "";
+                schedaOrdine.style.pointerEvents = "";
             }
         });
 }
 
 function aggiornaDashboard() {
-    const categoria = categoriaCorrente; // già estratta sopra
+    // Richiede HTML parziale per aggiornare liste "in corso" e "completati".
+    const categoria = categoriaCorrente;
+
     fetch(`/dashboard/${categoria}/partial`)
-        .then(res => res.json())
-        .then(data => {
-            document.querySelectorAll('.griglia-ordini')[0].innerHTML = data.html_non_completati;
-            document.querySelectorAll('.griglia-ordini')[1].innerHTML = data.html_completati;
+        .then((res) => res.json())
+        .then((dati) => {
+            const griglie = document.querySelectorAll(".griglia-ordini");
+            if (griglie.length < 2) return;
+
+            // Prima griglia: ordini non completati.
+            griglie[0].innerHTML = dati.html_non_completati;
+
+            // Seconda griglia: ordini completati.
+            griglie[1].innerHTML = dati.html_completati;
         })
-        .catch(err => console.error("Errore aggiornamento:", err));
+        .catch((errore) => console.error("Errore aggiornamento:", errore));
 }

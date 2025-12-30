@@ -1,99 +1,121 @@
-import pytest
 import bcrypt
-from app import ottieni_db, ricalcola_statistiche
+from app import ottieni_db
 
-def test_amministrazione_route(client, auth):
-    """Test access to administration page."""
-    # Login as admin
-    auth.login()
-    
-    response = client.get('/amministrazione/')
-    assert response.status_code == 200
-    assert b'Amministrazione' in response.data
+# ==================== Rotte Extra ====================
 
-def test_genera_statistiche_route(client, auth):
-    """Test /genera_statistiche/ route."""
-    auth.login()
-    response = client.get('/genera_statistiche/')
-    assert response.status_code == 302 # Redirects
-    assert response.location.endswith('/amministrazione/')
 
-def test_debug_reset_dati_route(client, auth):
-    """Test /debug/reset_dati/ route."""
-    auth.login()
-    
-    # Insert some data to be reset
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO ordini (id, nome_cliente, numero_tavolo, asporto, metodo_pagamento) VALUES (999, 'To Delete', 1, 0, 'Contanti')")
-        conn.execute("INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita) VALUES (999, 1, 1)")
-        conn.commit()
-        
-    response = client.get('/debug/reset_dati/')
-    assert response.status_code == 302
-    
-    with ottieni_db() as conn:
-        count = conn.execute("SELECT COUNT(*) as c FROM ordini").fetchone()['c']
-        assert count == 0
+def test_pagina_amministrazione_risponde(cliente, autenticazione):
+    # Esegue login come admin.
+    autenticazione.accedi()
+    # Richiede pagina amministrazione.
+    risposta = cliente.get("/amministrazione/")
+    # Verifica status e contenuto.
+    assert risposta.status_code == 200
+    assert b"Amministrazione" in risposta.data
 
-def test_403_forbidden(client, auth):
-    """Test 403 Forbidden error handler."""
-    # Create a non-admin user
+def test_rotta_genera_statistiche_reindirizza(cliente, autenticazione):
+    # Esegue login come admin.
+    autenticazione.accedi()
+    # Invoca la rotta che genera statistiche.
+    risposta = cliente.get("/genera_statistiche/")
+    # Verifica redirect verso amministrazione.
+    assert risposta.status_code == 302
+    assert risposta.location.endswith("/amministrazione/")
+
+def test_rotta_reset_dati_pulisce_ordini(cliente, autenticazione):
+    # Esegue login come admin.
+    autenticazione.accedi()
+
+    # Inserisce un ordine e una riga prodotto associata.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, asporto, metodo_pagamento) VALUES (999, 'Da Eliminare', 1, 0, 'Contanti')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita) VALUES (999, 1, 1)"
+        )
+        connessione.commit()
+
+    # Invoca la rotta di reset dati.
+    risposta = cliente.get("/debug/reset_dati/")
+    # Verifica redirect.
+    assert risposta.status_code == 302
+
+    # Verifica che la tabella ordini sia stata svuotata.
+    with ottieni_db() as connessione:
+        conteggio = connessione.execute("SELECT COUNT(*) as c FROM ordini").fetchone()["c"]
+        assert conteggio == 0
+
+def test_errore_403_senza_permessi_amministrazione(cliente, autenticazione):
+    # Crea un utente non admin con password nota.
     password = "pass"
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES ('user', ?, 0, 1)", (password_hash,))
-        conn.commit()
-    
-    # Login as non-admin
-    auth.login(username='user', password='pass')
-    
-    # Try to access admin page (requires AMMINISTRAZIONE permission, which user doesn't have)
-    response = client.get('/amministrazione/')
-    assert response.status_code == 403
-    assert b'Accesso Negato' in response.data or b'403' in response.data
+    hash_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-def test_inactive_user(client, auth):
-    """Test behavior when user is inactive."""
-    # Create inactive user
+    # Inserisce utente senza permessi amministrazione.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES ('utente', ?, 0, 1)",
+            (hash_password,),
+        )
+        connessione.commit()
+
+    # Esegue login come utente base.
+    autenticazione.accedi(username="utente", password="pass")
+    # Prova ad accedere ad amministrazione.
+    risposta = cliente.get("/amministrazione/")
+    # Verifica accesso negato.
+    assert risposta.status_code == 403
+    assert b"Accesso Negato" in risposta.data or b"403" in risposta.data
+
+def test_utente_disattivo_viene_reindirizzato_al_login(cliente, autenticazione):
+    # Crea un utente disattivo con password nota.
     password = "pass"
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES ('inactive', ?, 0, 0)", (password_hash,))
-        conn.commit()
-        
-    auth.login(username='inactive', password='pass')
-    
-    # Try to access a protected route
-    response = client.get('/amministrazione/')
-    # Should redirect to login because user is inactive (session cleared)
-    assert response.status_code == 302
-    assert '/login/' in response.location
+    hash_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-def test_esporta_statistiche_download(client, auth):
-    auth.login()
+    # Inserisce utente disattivo nel DB.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES ('disattivo', ?, 0, 0)",
+            (hash_password,),
+        )
+        connessione.commit()
 
-    with ottieni_db() as conn:
-        conn.execute(
+    # Esegue login (l'app dovrebbe poi negare l'accesso).
+    autenticazione.accedi(username="disattivo", password="pass")
+    # Prova ad accedere ad amministrazione.
+    risposta = cliente.get("/amministrazione/")
+    # Verifica redirect a login.
+    assert risposta.status_code == 302
+    assert "/login/" in risposta.location
+
+def test_esporta_statistiche_scarica_pdf(cliente, autenticazione):
+    # Esegue login come admin.
+    autenticazione.accedi()
+
+    # Inserisce dati minimi per esportazione PDF.
+    with ottieni_db() as connessione:
+        connessione.execute(
             "INSERT INTO prodotti (id, nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (1000, "ProdTest", 3.5, "TestCat", "Bar", 1, 10, 0)
+            (1000, "ProdTest", 3.5, "TestCat", "Bar", 1, 10, 0),
         )
-        conn.execute(
+        connessione.execute(
             "INSERT INTO ordini (id, asporto, data_ordine, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, completato) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (1000, 0, "2025-01-01 12:34:56", "Mario", 5, 2, "Contanti", 1)
+            (1000, 0, "2025-01-01 12:34:56", "Mario", 5, 2, "Contanti", 1),
         )
-        conn.execute(
+        connessione.execute(
             "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (?, ?, ?, ?)",
-            (1000, 1000, 2, "Completato")
+            (1000, 1000, 2, "Completato"),
         )
-        conn.commit()
+        connessione.commit()
 
-    response = client.get('/amministrazione/esporta_statistiche')
-    assert response.status_code == 200
-    assert response.mimetype == 'application/pdf'
-    assert 'attachment;' in response.headers.get('Content-Disposition', '')
-    assert response.data[:4] == b'%PDF'
-    assert b'Ordine #1000' in response.data
-    assert b'Mario' in response.data
-    assert b'ProdTest' in response.data
+    # Richiede endpoint di esportazione.
+    risposta = cliente.get("/amministrazione/esporta_statistiche")
+    # Verifica headers e magic bytes PDF.
+    assert risposta.status_code == 200
+    assert risposta.mimetype == "application/pdf"
+    assert "attachment;" in risposta.headers.get("Content-Disposition", "")
+    assert risposta.data[:4] == b"%PDF"
+    # Verifica che nel PDF siano presenti dati attesi.
+    assert b"Ordine #1000" in risposta.data
+    assert b"Mario" in risposta.data
+    assert b"ProdTest" in risposta.data

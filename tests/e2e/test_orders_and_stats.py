@@ -1,123 +1,105 @@
-import pytest
 import time
-from playwright.sync_api import Page, expect
+from playwright.sync_api import expect
 
-def test_routing_ordini_e_statistiche(page: Page, base_url):
-    """
-    Test 3 & 5:
-    3. Routing Categorie: Verifica che ogni prodotto finisca nella dashboard corretta.
-    5. Accuratezza Statistiche: Verifica che l'incasso totale aumenti correttamente.
-    """
-    
-    # --- 0. PREPARAZIONE DATI (Admin) ---
-    page.goto(f"{base_url}/login")
-    page.fill('input[name="username"]', "admin")
-    page.fill('input[name="password"]', "admin")
-    page.click('button[type="submit"]')
-    page.click('text=Amministrazione')
-    
-    # Recupera statistiche iniziali (Totale Incasso)
-    # La card dell'incasso è la 3^ (indice 2) -> "Totale Incasso"
-    # Struttura: .scheda-statistica .valore-statistica
-    # Attesa che i dati siano caricati
-    page.wait_for_selector('.scheda-statistica .valore-statistica')
-    
-    # Helper per pulire la stringa valuta (es. "120.50 €" -> 120.50)
-    def parse_currency(text):
-        clean = text.replace('€', '').replace(',', '.').strip()
-        return float(clean) if clean else 0.0
+# ==================== Ordini e Statistiche ====================
 
-    stats_cards = page.locator('.scheda-statistica .valore-statistica')
-    # Assicuriamoci che ci siano le card (Totale Ordini, Completati, Incasso, Carta, Contanti)
-    expect(stats_cards.first).to_be_visible()
-    
-    # L'incasso è solitamente la terza card (index 2)
-    initial_revenue_text = stats_cards.nth(2).inner_text()
-    initial_revenue = parse_currency(initial_revenue_text)
 
-    # Creazione prodotti per ogni categoria
-    categories = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
-    product_map = {} # nome -> categoria
-    
-    for cat in categories:
-        prod_name = f"Test {cat} {int(time.time())}" # Timestamp per unicità
-        product_map[cat] = prod_name
-        
-        # Apri modale
-        page.locator('.sezione-tabella', has_text="Dettaglio prodotti").locator('.tasto-aggiungi-header').click()
-        expect(page.locator('#modaleAggiunta')).to_be_visible()
-        
-        page.fill('#nomeProdottoAggiunta', prod_name)
-        page.fill('#prezzoProdottoAggiunta', '10.00') # Prezzo fisso per calcoli facili
-        page.fill('#quantitaProdottoAggiunta', '100')
-        page.select_option('#categoriaMenuAggiunta', 'Da Bere' if cat == 'Bar' else 'Primi')
-        page.select_option('#categoriaDashboardAggiunta', cat)
-        
-        page.click('#formAggiunta .btn-conferma')
-        
-        # Attendi chiusura modale e refresh
-        expect(page.locator('#modaleAggiunta')).not_to_be_visible()
-        page.wait_for_timeout(200) # Piccolo wait per sicurezza socket
-        
-    # --- 1. ORDINAZIONE (Cliente) ---
-    page.goto(f"{base_url}/cassa/")
-    
-    # Aggiungi 1 di ogni prodotto al carrello
-    for cat, prod_name in product_map.items():
-        target_tab = 'Da Bere' if cat == 'Bar' else 'Primi'
-        page.locator(f'.linguetta[data-categoria="{target_tab}"]').click()
-        
-        prod_card = page.locator('.prodotto', has_text=prod_name)
-        expect(prod_card).to_be_visible()
-        prod_card.locator('.tasto-piu').click()
+def test_routing_ordini_e_incremento_incasso(pagina, url_base):
+    # Helper per convertire stringa valuta in float.
+    def estrai_valuta(testo):
+        pulito = testo.replace("€", "").replace(",", ".").strip()
+        return float(pulito) if pulito else 0.0
 
-    page.fill('input[name="nome_cliente"]', "Cliente Test")
-    page.fill('input[name="numero_tavolo"]', "1")
-    page.fill('input[name="numero_persone"]', "4")
-    page.select_option('select[name="metodo_pagamento"]', "Contanti")
-    
-    # --- VERIFICA TOTALE CARRELLO (Completamento Test 1) ---
-    # Verifica che il totale visualizzato sia corretto (4 prodotti * 10.00€ = 40.00€)
-    totale_visibile = page.locator('.totale-carrello h2').nth(1).inner_text()
-    assert "40.00" in totale_visibile, f"Errore Totale Carrello: Atteso 40.00, Trovato {totale_visibile}"
-    print(f"DEBUG: Totale carrello verificato: {totale_visibile}")
+    # Login admin e accesso amministrazione.
+    pagina.goto(f"{url_base}/login")
+    pagina.fill('input[name="username"]', "admin")
+    pagina.fill('input[name="password"]', "admin")
+    pagina.click('button[type="submit"]')
+    pagina.click("text=Amministrazione")
 
-    # Invia Ordine
-    page.click('.tasto-conferma-ordine')
-    
-    # Aspettiamo un attimo per il redirect/conferma
-    page.wait_for_timeout(1000)
-    
-    # --- 2. VERIFICA DASHBOARD (Test 3) ---
-    
-    # Dashboard BAR
-    page.goto(f"{base_url}/dashboard/Bar")
-    expect(page.locator('.scheda-ordine', has_text=product_map['Bar'])).to_be_visible()
-    expect(page.locator('.scheda-ordine', has_text=product_map['Cucina'])).not_to_be_visible()
-    
-    # Dashboard CUCINA
-    page.goto(f"{base_url}/dashboard/Cucina")
-    expect(page.locator('.scheda-ordine', has_text=product_map['Cucina'])).to_be_visible()
-    expect(page.locator('.scheda-ordine', has_text=product_map['Bar'])).not_to_be_visible()
-    
-    # Dashboard GRIGLIA
-    page.goto(f"{base_url}/dashboard/Griglia")
-    expect(page.locator('.scheda-ordine', has_text=product_map['Griglia'])).to_be_visible()
-    
-    # Dashboard GNOCCHERIA
-    page.goto(f"{base_url}/dashboard/Gnoccheria")
-    expect(page.locator('.scheda-ordine', has_text=product_map['Gnoccheria'])).to_be_visible()
-    
-    # --- 3. VERIFICA STATISTICHE (Test 5) ---
-    page.goto(f"{base_url}/amministrazione")
-    page.wait_for_selector('.scheda-statistica .valore-statistica')
-    
-    final_revenue_text = page.locator('.scheda-statistica .valore-statistica').nth(2).inner_text()
-    final_revenue = parse_currency(final_revenue_text)
-    
-    expected_increase = 40.00
-    
-    # Tolleranza floating point
-    assert abs(final_revenue - (initial_revenue + expected_increase)) < 0.01, \
-        f"Errore statistiche: Iniziale {initial_revenue}, Aggiunto {expected_increase}, Finale {final_revenue}"
+    # Legge incasso iniziale dalle card statistiche.
+    pagina.wait_for_selector(".scheda-statistica .valore-statistica")
+    valori_statistiche = pagina.locator(".scheda-statistica .valore-statistica")
+    expect(valori_statistiche.first).to_be_visible()
+    incasso_iniziale = estrai_valuta(valori_statistiche.nth(2).inner_text())
 
+    # Crea un prodotto per ciascuna dashboard.
+    categorie = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
+    prodotti_per_categoria = {}
+
+    for categoria in categorie:
+        # Nome unico per evitare collisioni.
+        nome_prodotto = f"Test {categoria} {int(time.time())}"
+        prodotti_per_categoria[categoria] = nome_prodotto
+
+        # Apre modale aggiunta prodotto.
+        pagina.locator(".sezione-tabella", has_text="Dettaglio prodotti").locator(
+            ".tasto-aggiungi-header"
+        ).click()
+        expect(pagina.locator("#modaleAggiunta")).to_be_visible()
+
+        # Compila form prodotto e conferma.
+        pagina.fill("#nomeProdottoAggiunta", nome_prodotto)
+        pagina.fill("#prezzoProdottoAggiunta", "10.00")
+        pagina.fill("#quantitaProdottoAggiunta", "100")
+        pagina.select_option("#categoriaMenuAggiunta", "Da Bere" if categoria == "Bar" else "Primi")
+        pagina.select_option("#categoriaDashboardAggiunta", categoria)
+        pagina.click("#formAggiunta .bottone-conferma")
+
+        # Attende chiusura modale e aggiornamento.
+        expect(pagina.locator("#modaleAggiunta")).not_to_be_visible()
+        pagina.wait_for_timeout(200)
+
+    # Passa alla cassa per creare un ordine con tutti i prodotti.
+    pagina.goto(f"{url_base}/cassa/")
+
+    for categoria, nome_prodotto in prodotti_per_categoria.items():
+        # Seleziona linguetta corretta in base alla categoria.
+        linguetta = "Da Bere" if categoria == "Bar" else "Primi"
+        pagina.locator(f'.linguetta[data-categoria="{linguetta}"]').click()
+
+        # Aggiunge prodotto al carrello.
+        scheda_prodotto = pagina.locator(".prodotto", has_text=nome_prodotto)
+        expect(scheda_prodotto).to_be_visible()
+        scheda_prodotto.locator(".tasto-piu").click()
+
+    # Compila form ordine.
+    pagina.fill('input[name="nome_cliente"]', "Cliente Test")
+    pagina.fill('input[name="numero_tavolo"]', "1")
+    pagina.fill('input[name="numero_persone"]', "4")
+    pagina.select_option('select[name="metodo_pagamento"]', "Contanti")
+
+    # Verifica totale carrello (4 * 10.00).
+    totale_visibile = pagina.locator(".totale-carrello h2").nth(1).inner_text()
+    assert "40.00" in totale_visibile
+
+    # Invia ordine e attende elaborazione.
+    pagina.click(".tasto-conferma-ordine")
+    pagina.wait_for_timeout(1000)
+
+    # Verifica routing: su Bar deve apparire solo prodotto Bar.
+    pagina.goto(f"{url_base}/dashboard/Bar")
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Bar"])).to_be_visible()
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Cucina"])).not_to_be_visible()
+
+    # Verifica routing: su Cucina deve apparire solo prodotto Cucina.
+    pagina.goto(f"{url_base}/dashboard/Cucina")
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Cucina"])).to_be_visible()
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Bar"])).not_to_be_visible()
+
+    # Verifica routing: dashboard Griglia.
+    pagina.goto(f"{url_base}/dashboard/Griglia")
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Griglia"])).to_be_visible()
+
+    # Verifica routing: dashboard Gnoccheria.
+    pagina.goto(f"{url_base}/dashboard/Gnoccheria")
+    expect(pagina.locator(".scheda-ordine", has_text=prodotti_per_categoria["Gnoccheria"])).to_be_visible()
+
+    # Torna in amministrazione e rilegge incasso finale.
+    pagina.goto(f"{url_base}/amministrazione")
+    pagina.wait_for_selector(".scheda-statistica .valore-statistica")
+    incasso_finale = estrai_valuta(pagina.locator(".scheda-statistica .valore-statistica").nth(2).inner_text())
+
+    # Verifica incremento incasso atteso.
+    aumento_atteso = 40.00
+    assert abs(incasso_finale - (incasso_iniziale + aumento_atteso)) < 0.01

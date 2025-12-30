@@ -1,32 +1,38 @@
 {% for ordine in ordini %}
-<div class="scheda-ordine {% if completati %}completato{% endif %}" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
+  <div
+    class="scheda-ordine {% if completati %}completato{% endif %}"
+    data-status="{{ ordine['stato'] }}"
+    data-id="{{ ordine['id'] }}"
+  >
     <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
     <div class="info-ordine">
-        <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
-        <div>{{ ordine['data_ordine'][11:16] }}</div>
-        <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
+      <div>Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}</div>
+      <div>{{ ordine['data_ordine'][11:16] }}</div>
+      <div>Persone: {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}</div>
     </div>
     <div class="{% if completati %}divisore-ordine-completato{% else %}divisore-ordine{% endif %}"></div>
 
     <div class="lista-articoli-ordine">
-        {% for prodotto in ordine['prodotti'] %}
+      {% for prodotto in ordine['prodotti'] %}
         <div class="riga-articolo-ordine">
-            <span>{{ prodotto['nome'] }}</span>
-            <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
+          <span>{{ prodotto['nome'] }}</span>
+          <span class="etichetta-quantita">x{{ prodotto['quantita'] }}</span>
         </div>
-        {% endfor %}
+      {% endfor %}
     </div>
 
     {% if not completati %}
-    <div class="stato-ordine">
-        <button class="tasto-azione-ordine"
-                data-status="{{ ordine['stato'] }}"
-                data-id="{{ ordine['id'] }}"
-                data-categoria="{{ category }}"
-                onclick="cambiaStato(this)">
-            {{ ordine['stato'] }}
+      <div class="stato-ordine">
+        <button
+          class="tasto-azione-ordine"
+          data-status="{{ ordine['stato'] }}"
+          data-id="{{ ordine['id'] }}"
+          data-categoria="{{ category }}"
+          onclick="cambiaStato(this)"
+        >
+          {{ ordine['stato'] }}
         </button>
-    </div>
+      </div>
     {% endif %}
-</div>
+  </div>
 {% endfor %}

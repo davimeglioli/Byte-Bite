@@ -1,104 +1,131 @@
-let charts = {
+// ==================== Stato pagina ====================
+let grafici = {
     categorie: null,
     ore: null,
     completati: null,
-    top10: null
+    top10: null,
 };
 
-let socket = null;
-let joined = new Set();
-let refreshScheduled = false;
+let socketIo = null;
+let stanzeIscritte = new Set();
+let aggiornamentoPianificato = false;
 
+// ==================== Statistiche e grafici ====================
 async function caricaStatistiche() {
-    const res = await fetch("/api/statistiche/");
-    return await res.json();
+    // Carica i dati aggregati necessari per grafici e riepiloghi.
+    const risposta = await fetch("/api/statistiche/");
+    return await risposta.json();
 }
 
 function aggiornaRecap(totali) {
-    const cards = document.querySelectorAll(".scheda-statistica .valore-statistica");
-    cards[0].textContent = totali.ordini_totali;
-    cards[1].textContent = totali.ordini_completati;
-    cards[2].textContent = totali.totale_incasso.toFixed(2) + " €";
-    cards[3].textContent = totali.totale_carta.toFixed(2) + " €";
-    cards[4].textContent = totali.totale_contanti.toFixed(2) + " €";
+    // Aggiorna i numeri in alto nelle schede statistiche.
+    const schede = document.querySelectorAll(".scheda-statistica .valore-statistica");
+    schede[0].textContent = totali.ordini_totali;
+    schede[1].textContent = totali.ordini_completati;
+    schede[2].textContent = totali.totale_incasso.toFixed(2) + " €";
+    schede[3].textContent = totali.totale_carta.toFixed(2) + " €";
+    schede[4].textContent = totali.totale_contanti.toFixed(2) + " €";
 }
 
-function initCharts(stats) {
-    charts.categorie = new Chart(document.getElementById("grafico1"), {
+function inizializzaGrafici(statistiche) {
+    // Grafico 1: quantità per categoria dashboard.
+    grafici.categorie = new Chart(document.getElementById("grafico1"), {
         type: "pie",
         data: {
-            labels: stats.categorie.map(c => c.categoria_dashboard),
-            datasets: [{ data: stats.categorie.map(c => c.totale) }]
+            labels: statistiche.categorie.map((c) => c.categoria_dashboard),
+            datasets: [{ data: statistiche.categorie.map((c) => c.totale) }],
         },
-        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1 }
+        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1 },
     });
 
-    charts.ore = new Chart(document.getElementById("grafico2"), {
+    // Grafico 2: ordini per ora.
+    grafici.ore = new Chart(document.getElementById("grafico2"), {
         type: "line",
         data: {
-            labels: stats.ore.map(o => o.ora),
-            datasets: [{ label: "Ordini per ora", data: stats.ore.map(o => o.totale), borderWidth: 2 }]
+            labels: statistiche.ore.map((o) => o.ora),
+            datasets: [{ label: "Ordini per ora", data: statistiche.ore.map((o) => o.totale), borderWidth: 2 }],
         },
-        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2 }
+        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2 },
     });
 
-    charts.completati = new Chart(document.getElementById("grafico3"), {
+    // Grafico 3: completati vs non completati.
+    grafici.completati = new Chart(document.getElementById("grafico3"), {
         type: "doughnut",
         data: {
             labels: ["Completati", "Non Completati"],
-            datasets: [{ data: [stats.totali.ordini_completati, stats.totali.ordini_totali - stats.totali.ordini_completati] }]
+            datasets: [
+                {
+                    data: [
+                        statistiche.totali.ordini_completati,
+                        statistiche.totali.ordini_totali - statistiche.totali.ordini_completati,
+                    ],
+                },
+            ],
         },
-        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1 }
+        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1 },
     });
 
-    charts.top10 = new Chart(document.getElementById("grafico4"), {
+    // Grafico 4: top 10 prodotti per venduti.
+    grafici.top10 = new Chart(document.getElementById("grafico4"), {
         type: "bar",
         data: {
-            labels: stats.top10.map(p => p.nome),
-            datasets: [{ label: "Venduti", data: stats.top10.map(p => p.venduti), borderWidth: 2 }]
+            labels: statistiche.top10.map((p) => p.nome),
+            datasets: [{ label: "Venduti", data: statistiche.top10.map((p) => p.venduti), borderWidth: 2 }],
         },
-        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2, scales: { y: { beginAtZero: true } } },
     });
 }
 
-function aggiornaCharts(stats) {
-    charts.categorie.data.labels = stats.categorie.map(c => c.categoria_dashboard);
-    charts.categorie.data.datasets[0].data = stats.categorie.map(c => c.totale);
-    charts.categorie.update();
+function aggiornaGrafici(statistiche) {
+    // Aggiorna grafico categorie.
+    grafici.categorie.data.labels = statistiche.categorie.map((c) => c.categoria_dashboard);
+    grafici.categorie.data.datasets[0].data = statistiche.categorie.map((c) => c.totale);
+    grafici.categorie.update();
 
-    charts.ore.data.labels = stats.ore.map(o => o.ora);
-    charts.ore.data.datasets[0].data = stats.ore.map(o => o.totale);
-    charts.ore.update();
+    // Aggiorna grafico ore.
+    grafici.ore.data.labels = statistiche.ore.map((o) => o.ora);
+    grafici.ore.data.datasets[0].data = statistiche.ore.map((o) => o.totale);
+    grafici.ore.update();
 
-    charts.completati.data.datasets[0].data = [stats.totali.ordini_completati, stats.totali.ordini_totali - stats.totali.ordini_completati];
-    charts.completati.update();
+    // Aggiorna grafico completati.
+    grafici.completati.data.datasets[0].data = [
+        statistiche.totali.ordini_completati,
+        statistiche.totali.ordini_totali - statistiche.totali.ordini_completati,
+    ];
+    grafici.completati.update();
 
-    charts.top10.data.labels = stats.top10.map(p => p.nome);
-    charts.top10.data.datasets[0].data = stats.top10.map(p => p.venduti);
-    charts.top10.update();
+    // Aggiorna grafico top 10.
+    grafici.top10.data.labels = statistiche.top10.map((p) => p.nome);
+    grafici.top10.data.datasets[0].data = statistiche.top10.map((p) => p.venduti);
+    grafici.top10.update();
 }
 
-function joinRooms(categorie) {
-    if (!socket) return;
-    const room = 'amministrazione';
-    if (!joined.has(room)) {
-        socket.emit("join", { categoria: room });
-        joined.add(room);
-    }
+// ==================== Realtime ====================
+function iscrivitiStanze(_categorie) {
+    // L'amministrazione riceve notifiche globali sulla stanza dedicata.
+    if (!socketIo) return;
+
+    const stanza = "amministrazione";
+    if (stanzeIscritte.has(stanza)) return;
+
+    socketIo.emit("join", { categoria: stanza });
+    stanzeIscritte.add(stanza);
 }
 
+// ==================== Tabelle e filtri ====================
 async function aggiornaTabellaOrdini() {
-    const res = await fetch("/api/amministrazione/ordini_html");
-    const html = await res.text();
-    document.querySelector(".tabella-ordini tbody").innerHTML = html;
+    // Ricarica solo le righe della tabella ordini (HTML parziale).
+    const risposta = await fetch("/api/amministrazione/ordini_html");
+    const html = await risposta.text();
+    document.querySelector(".tabella-dati tbody").innerHTML = html;
 }
 
-// Funzione per filtrare i prodotti (Global)
 function filtraProdotti(categoria) {
-    const righe = document.querySelectorAll(".tabella-ordini tbody tr[data-categoria]");
-    righe.forEach(riga => {
-        const catRiga = riga.getAttribute("data-categoria");
-        if (categoria === "Tutte" || catRiga === categoria) {
+    // Filtra righe prodotti in base alla categoria menu.
+    const righe = document.querySelectorAll(".tabella-dati tbody tr[data-categoria]");
+    righe.forEach((riga) => {
+        const categoriaRiga = riga.getAttribute("data-categoria");
+        if (categoria === "Tutte" || categoriaRiga === categoria) {
             riga.classList.remove("nascosto");
         } else {
             riga.classList.add("nascosto");
@@ -107,107 +134,111 @@ function filtraProdotti(categoria) {
 }
 
 async function aggiornaTabellaProdotti() {
-    const res = await fetch("/api/amministrazione/prodotti_html");
-    const html = await res.text();
-    // La seconda tabella nella pagina è quella dei prodotti
-    // Usiamo un selettore più specifico basato sulla struttura HTML
-    const tabelle = document.querySelectorAll(".tabella-ordini tbody");
-    if (tabelle.length >= 2) {
-        tabelle[1].innerHTML = html;
-        
-        // Re-applica il filtro della tab attiva
-        const activeTab = document.querySelector(".contenitore-menu .linguetta.attiva");
-        if (activeTab) {
-             const categoria = activeTab.getAttribute("data-categoria") || activeTab.textContent.trim();
-             filtraProdotti(categoria);
+    // Ricarica solo le righe della tabella prodotti (HTML parziale).
+    const risposta = await fetch("/api/amministrazione/prodotti_html");
+    const html = await risposta.text();
+
+    // La pagina contiene due tbody con la stessa classe: [0]=ordini, [1]=prodotti.
+    const tbodyTabelle = document.querySelectorAll(".tabella-dati tbody");
+    if (tbodyTabelle.length < 2) return;
+
+    tbodyTabelle[1].innerHTML = html;
+
+    // Riapplica il filtro della tab attiva dopo il refresh.
+    const tabAttiva = document.querySelector(".contenitore-menu .linguetta.attiva");
+    if (!tabAttiva) return;
+
+    const categoria = tabAttiva.getAttribute("data-categoria") || tabAttiva.textContent.trim();
+    filtraProdotti(categoria);
+}
+
+async function toggleDettagli(bottone) {
+    // Espande/chiude la riga dettagli dell'ordine nella tabella.
+    const idOrdine = bottone.getAttribute("data-id");
+    const rigaOrdine = bottone.closest("tr");
+    const rigaSuccessiva = rigaOrdine.nextElementSibling;
+    const espanso = bottone.classList.contains("attivo");
+
+    if (espanso) {
+        // Chiude e rimuove la riga dettagli se presente.
+        bottone.classList.remove("attivo");
+        if (rigaSuccessiva && rigaSuccessiva.classList.contains("riga-dettagli")) {
+            rigaSuccessiva.remove();
         }
+        return;
+    }
+
+    // Apre: prima pulisce eventuali dettagli residui.
+    bottone.classList.add("attivo");
+    if (rigaSuccessiva && rigaSuccessiva.classList.contains("riga-dettagli")) {
+        rigaSuccessiva.remove();
+    }
+
+    try {
+        // Richiede l'HTML dei dettagli e lo inserisce subito dopo la riga ordine.
+        const risposta = await fetch(`/api/ordine/${idOrdine}/dettagli`);
+        if (!risposta.ok) throw new Error("Errore nel caricamento dei dettagli");
+        const html = await risposta.text();
+        rigaOrdine.insertAdjacentHTML("afterend", html);
+    } catch (errore) {
+        // Ripristina il bottone e avvisa l'utente.
+        console.error("Errore:", errore);
+        alert("Impossibile caricare i dettagli dell'ordine.");
+        bottone.classList.remove("attivo");
     }
 }
 
-async function toggleDettagli(btn) {
-    const ordineId = btn.getAttribute('data-id');
-    const tr = btn.closest('tr');
-    const nextTr = tr.nextElementSibling;
-    const isExpanded = btn.classList.contains('attivo');
+// ==================== Aggiornamento pagina ====================
+async function aggiornaTutto() {
+    // Carica statistiche e aggiorna UI (grafici + tabelle).
+    const statistiche = await caricaStatistiche();
+    aggiornaRecap(statistiche.totali);
+    aggiornaGrafici(statistiche);
+    iscrivitiStanze(statistiche.categorie);
 
-    if (isExpanded) {
-        // Chiudi
-        btn.classList.remove('attivo');
-        if (nextTr && nextTr.classList.contains('riga-dettagli')) {
-            nextTr.remove();
-        }
-    } else {
-        // Espandi
-        // Chiudi eventuali altri dettagli aperti (opzionale, ma mantiene la UI pulita)
-        // document.querySelectorAll('.bottone-espandi.attivo').forEach(b => {
-        //     if (b !== btn) toggleDettagli(b);
-        // });
-
-        btn.classList.add('attivo');
-        
-        // Rimuovi dettagli esistenti se presenti per errore
-        if (nextTr && nextTr.classList.contains('riga-dettagli')) {
-            nextTr.remove();
-        }
-
-        try {
-            const response = await fetch(`/api/ordine/${ordineId}/dettagli`);
-            if (!response.ok) throw new Error('Errore nel caricamento dei dettagli');
-            const html = await response.text();
-            tr.insertAdjacentHTML('afterend', html);
-        } catch (error) {
-            console.error('Errore:', error);
-            alert('Impossibile caricare i dettagli dell\'ordine.');
-            btn.classList.remove('attivo');
-        }
-    }
-}
-
-async function refresh() {
-    const stats = await caricaStatistiche();
-    aggiornaRecap(stats.totali);
-    aggiornaCharts(stats);
-    joinRooms(stats.categorie);
+    // Tabelle: partono in parallelo (non atteso) per ridurre latenza percepita.
     aggiornaTabellaOrdini();
     aggiornaTabellaProdotti();
 }
 
-function scheduleRefresh() {
-    if (refreshScheduled) return;
-    refreshScheduled = true;
+function pianificaAggiornamento() {
+    // Debounce: in caso di tanti eventi socket, raggruppa gli aggiornamenti.
+    if (aggiornamentoPianificato) return;
+    aggiornamentoPianificato = true;
+
     setTimeout(async () => {
-        await refresh();
-        refreshScheduled = false;
+        await aggiornaTutto();
+        aggiornamentoPianificato = false;
     }, 300);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    const stats = await caricaStatistiche();
-    aggiornaRecap(stats.totali);
-    initCharts(stats);
-    joinRooms(stats.categorie);
+    // Primo render: statistiche + grafici iniziali.
+    const statistiche = await caricaStatistiche();
+    aggiornaRecap(statistiche.totali);
+    inizializzaGrafici(statistiche);
+    iscrivitiStanze(statistiche.categorie);
 
+    // Realtime: ascolta gli eventi socket e pianifica un refresh debounced.
     if (typeof io !== "undefined") {
-        socket = io();
-        socket.on("connect", () => {
-            joinRooms(stats.categorie);
+        socketIo = io();
+        socketIo.on("connect", () => {
+            iscrivitiStanze(statistiche.categorie);
         });
-        socket.on("aggiorna_dashboard", () => {
-            scheduleRefresh();
+        socketIo.on("aggiorna_dashboard", () => {
+            pianificaAggiornamento();
         });
     }
 
-    // Gestione tab categorie
-    const tabs = document.querySelectorAll(".contenitore-menu .linguetta");
-    if (tabs.length > 0) {
-        // Funzione per filtrare i prodotti
-        function filtraProdotti(categoria) {
-            const righe = document.querySelectorAll(".tabella-ordini tbody tr[data-categoria]");
-            righe.forEach(riga => {
-                const catRiga = riga.getAttribute("data-categoria");
-                // Se la categoria selezionata è "Tutte" (o simile) o corrisponde, mostra. Altrimenti nascondi.
-                // Nota: Assumo che la tab cliccata contenga il nome esatto della categoria dashboard
-                if (categoria === "Tutte" || catRiga === categoria) {
+    // ==================== Filtri prodotti (linguette categorie) ====================
+    const linguetteCategorie = document.querySelectorAll(".contenitore-menu .linguetta");
+    if (linguetteCategorie.length > 0) {
+        // Filtra le righe prodotto in base alla linguetta cliccata.
+        function filtraProdottiDaTab(categoria) {
+            const righe = document.querySelectorAll(".tabella-dati tbody tr[data-categoria]");
+            righe.forEach((riga) => {
+                const categoriaRiga = riga.getAttribute("data-categoria");
+                if (categoria === "Tutte" || categoriaRiga === categoria) {
                     riga.classList.remove("nascosto");
                 } else {
                     riga.classList.add("nascosto");
@@ -215,98 +246,97 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         }
 
-        // Attiva la prima tab di default e filtra
-        tabs[0].classList.add("attiva");
-        filtraProdotti(tabs[0].getAttribute("data-categoria") || tabs[0].textContent.trim());
-        
-        tabs.forEach(tab => {
-            tab.addEventListener("click", () => {
-                // Rimuovi attiva da tutte
-                tabs.forEach(t => t.classList.remove("attiva"));
-                // Aggiungi attiva alla cliccata
-                tab.classList.add("attiva");
-                
-                // Filtra la tabella
-                const categoria = tab.getAttribute("data-categoria") || tab.textContent.trim();
-                filtraProdotti(categoria);
+        // Attiva la prima linguetta di default.
+        linguetteCategorie[0].classList.add("attiva");
+        filtraProdottiDaTab(linguetteCategorie[0].getAttribute("data-categoria") || linguetteCategorie[0].textContent.trim());
+
+        // Al click, aggiorna la tab attiva e rifiltra la tabella.
+        linguetteCategorie.forEach((linguetta) => {
+            linguetta.addEventListener("click", () => {
+                linguetteCategorie.forEach((t) => t.classList.remove("attiva"));
+                linguetta.classList.add("attiva");
+
+                const categoria = linguetta.getAttribute("data-categoria") || linguetta.textContent.trim();
+                filtraProdottiDaTab(categoria);
             });
         });
     }
 
-    // --- GESTIONE MODALE RIFORNIMENTO ---
-    const modale = document.getElementById('modaleRifornimento');
-    const nomeProdottoTarget = document.getElementById('nomeProdottoTarget');
-    const idProdottoTarget = document.getElementById('idProdottoTarget');
-    const btnAnnulla = document.getElementById('btnAnnulla');
-    const formRifornimento = document.getElementById('formRifornimento');
+    // ==================== Modale: rifornimento prodotto ====================
+    const modaleRifornimento = document.getElementById("modaleRifornimento");
+    const nomeProdottoTarget = document.getElementById("nomeProdottoTarget");
+    const idProdottoTarget = document.getElementById("idProdottoTarget");
+    const btnAnnulla = document.getElementById("btnAnnulla");
+    const formRifornimento = document.getElementById("formRifornimento");
 
-    window.apriModaleRifornimento = function(id, nome) {
+    window.apriModaleRifornimento = function (id, nome) {
+        // Precompila i campi e porta in primo piano la modale.
         nomeProdottoTarget.textContent = nome;
         idProdottoTarget.value = id;
-        modale.classList.add('attivo');
+        modaleRifornimento.classList.add("attivo");
+
+        // Focus sul campo quantità per velocizzare l'operazione.
         setTimeout(() => {
-            modale.querySelector('input[type="number"]').focus();
+            modaleRifornimento.querySelector('input[type="number"]').focus();
         }, 100);
     };
 
-    function chiudiModale() {
-        modale.classList.remove('attivo');
+    function chiudiModaleRifornimento() {
+        // Chiude e resetta il form per il prossimo utilizzo.
+        modaleRifornimento.classList.remove("attivo");
         formRifornimento.reset();
     }
 
-    btnAnnulla.addEventListener('click', chiudiModale);
+    btnAnnulla.addEventListener("click", chiudiModaleRifornimento);
 
-    // Chiudi cliccando fuori
-    modale.addEventListener('click', (e) => {
-        if (e.target === modale) chiudiModale();
+    // Chiude cliccando fuori dalla finestra modale.
+    modaleRifornimento.addEventListener("click", (e) => {
+        if (e.target === modaleRifornimento) chiudiModaleRifornimento();
     });
 
-    // Gestione invio form
-    formRifornimento.addEventListener('submit', async (e) => {
+    // Invia richiesta rifornimento e chiude la modale.
+    formRifornimento.addEventListener("submit", async (e) => {
         e.preventDefault();
+
         const id = idProdottoTarget.value;
-        const quantita = document.getElementById('quantitaInput').value;
+        const quantita = document.getElementById("quantitaInput").value;
 
         try {
-            const response = await fetch('/api/rifornisci_prodotto', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ id: id, quantita: quantita })
+            const risposta = await fetch("/api/rifornisci_prodotto", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: id, quantita: quantita }),
             });
 
-            if (response.ok) {
-                // Ricarica gestita da socket
-            } else {
-                alert('Errore durante il rifornimento.');
+            if (!risposta.ok) {
+                alert("Errore durante il rifornimento.");
             }
-        } catch (error) {
-            console.error('Errore:', error);
-            alert('Errore di connessione.');
+        } catch (errore) {
+            console.error("Errore:", errore);
+            alert("Errore di connessione.");
         }
 
-        chiudiModale();
+        chiudiModaleRifornimento();
     });
 
-    // --- GESTIONE MODALE MODIFICA ---
-    const modaleModifica = document.getElementById('modaleModifica');
-    const formModifica = document.getElementById('formModifica');
-    const btnAnnullaModifica = document.getElementById('btnAnnullaModifica');
-    
-    // Elementi del form
-    const idProdottoModifica = document.getElementById('idProdottoModifica');
-    const nomeProdottoModifica = document.getElementById('nomeProdottoModifica');
-    const categoriaDashboardModifica = document.getElementById('categoriaDashboardModifica');
-    const quantitaProdottoModifica = document.getElementById('quantitaProdottoModifica');
-    const toggleDisponibilitaModifica = document.getElementById('toggleDisponibilitaModifica');
-    const labelStatoModifica = document.getElementById('labelStatoModifica');
+    // ==================== Modale: modifica prodotto ====================
+    const modaleModifica = document.getElementById("modaleModifica");
+    const formModifica = document.getElementById("formModifica");
+    const btnAnnullaModifica = document.getElementById("btnAnnullaModifica");
 
-    // Aggiorna label switch
+    // Elementi del form di modifica.
+    const idProdottoModifica = document.getElementById("idProdottoModifica");
+    const nomeProdottoModifica = document.getElementById("nomeProdottoModifica");
+    const categoriaDashboardModifica = document.getElementById("categoriaDashboardModifica");
+    const quantitaProdottoModifica = document.getElementById("quantitaProdottoModifica");
+    const toggleDisponibilitaModifica = document.getElementById("toggleDisponibilitaModifica");
+    const labelStatoModifica = document.getElementById("labelStatoModifica");
+
     function aggiornaLabelStato() {
+        // Sincronizza testo e stile in base allo stato del toggle.
         const disponibile = toggleDisponibilitaModifica.checked;
         labelStatoModifica.textContent = disponibile ? "Disponibile" : "Non disponibile";
-        
+
         if (disponibile) {
             labelStatoModifica.classList.add("testo-attivo");
             labelStatoModifica.classList.remove("testo-inattivo");
@@ -316,279 +346,284 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    toggleDisponibilitaModifica.addEventListener('change', aggiornaLabelStato);
+    // Aggiorna label quando cambia il toggle.
+    toggleDisponibilitaModifica.addEventListener("change", aggiornaLabelStato);
 
-    // Auto-switch disponibilità in base alla quantità
-    quantitaProdottoModifica.addEventListener('input', () => {
-        const qta = parseInt(quantitaProdottoModifica.value) || 0;
-        if (qta === 0) {
-            toggleDisponibilitaModifica.checked = false;
-        } else if (qta > 0) {
-            toggleDisponibilitaModifica.checked = true;
-        }
+    // Quando cambia quantità, abilita/disabilita automaticamente la disponibilità.
+    quantitaProdottoModifica.addEventListener("input", () => {
+        const quantita = parseInt(quantitaProdottoModifica.value) || 0;
+        toggleDisponibilitaModifica.checked = quantita > 0;
         aggiornaLabelStato();
     });
 
-    window.apriModaleModifica = function(btn) {
-        const id = btn.getAttribute('data-id');
-        const nome = btn.getAttribute('data-nome');
-        const cat = btn.getAttribute('data-cat');
-        const qta = btn.getAttribute('data-qta');
-        const disp = btn.getAttribute('data-disp') === '1';
+    window.apriModaleModifica = function (bottone) {
+        // Estrae i valori dai data-attribute della riga tabella.
+        const id = bottone.getAttribute("data-id");
+        const nome = bottone.getAttribute("data-nome");
+        const categoriaDashboard = bottone.getAttribute("data-cat");
+        const quantita = bottone.getAttribute("data-qta");
+        const disponibile = bottone.getAttribute("data-disp") === "1";
 
+        // Precompila campi e apre la modale.
         idProdottoModifica.value = id;
         nomeProdottoModifica.value = nome;
-        categoriaDashboardModifica.value = cat;
-        quantitaProdottoModifica.value = qta;
-        toggleDisponibilitaModifica.checked = disp;
+        categoriaDashboardModifica.value = categoriaDashboard;
+        quantitaProdottoModifica.value = quantita;
+        toggleDisponibilitaModifica.checked = disponibile;
         aggiornaLabelStato();
 
-        modaleModifica.classList.add('attivo');
+        modaleModifica.classList.add("attivo");
     };
 
     function chiudiModaleModifica() {
-        modaleModifica.classList.remove('attivo');
+        // Chiude la modale senza inviare modifiche.
+        modaleModifica.classList.remove("attivo");
     }
 
-    btnAnnullaModifica.addEventListener('click', chiudiModaleModifica);
+    btnAnnullaModifica.addEventListener("click", chiudiModaleModifica);
 
-    // Chiudi cliccando fuori
-    modaleModifica.addEventListener('click', (e) => {
+    // Chiude cliccando fuori dalla finestra modale.
+    modaleModifica.addEventListener("click", (e) => {
         if (e.target === modaleModifica) chiudiModaleModifica();
     });
 
-    // Gestione invio form modifica
-    formModifica.addEventListener('submit', async (e) => {
+    // Invia la modifica e chiude la modale.
+    formModifica.addEventListener("submit", async (e) => {
         e.preventDefault();
-        
-        const payload = {
+
+        const dati = {
             id: idProdottoModifica.value,
             nome: nomeProdottoModifica.value,
             categoria_dashboard: categoriaDashboardModifica.value,
             quantita: parseInt(quantitaProdottoModifica.value),
-            disponibile: toggleDisponibilitaModifica.checked
+            disponibile: toggleDisponibilitaModifica.checked,
         };
 
         try {
-            const response = await fetch('/api/modifica_prodotto', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            const risposta = await fetch("/api/modifica_prodotto", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dati),
             });
 
-            if (response.ok) {
-                // Ricarica gestita da socket
-            } else {
-                alert('Errore durante la modifica.');
+            if (!risposta.ok) {
+                alert("Errore durante la modifica.");
             }
-        } catch (error) {
-            console.error('Errore:', error);
-            alert('Errore di connessione.');
+        } catch (errore) {
+            console.error("Errore:", errore);
+            alert("Errore di connessione.");
         }
 
         chiudiModaleModifica();
     });
 
-    // --- GESTIONE MODALE ELIMINAZIONE ---
-    const modaleElimina = document.getElementById('modaleElimina');
-    const nomeProdottoElimina = document.getElementById('nomeProdottoElimina');
-    const idProdottoElimina = document.getElementById('idProdottoElimina');
-    const btnAnnullaElimina = document.getElementById('btnAnnullaElimina');
-    const btnConfermaElimina = document.getElementById('btnConfermaElimina');
+    // ==================== Modale: eliminazione prodotto ====================
+    const modaleElimina = document.getElementById("modaleElimina");
+    const nomeProdottoElimina = document.getElementById("nomeProdottoElimina");
+    const idProdottoElimina = document.getElementById("idProdottoElimina");
+    const btnAnnullaElimina = document.getElementById("btnAnnullaElimina");
+    const btnConfermaElimina = document.getElementById("btnConfermaElimina");
 
-    window.apriModaleElimina = function(btn) {
-        const id = btn.getAttribute('data-id');
-        const nome = btn.getAttribute('data-nome');
-        
+    window.apriModaleElimina = function (bottone) {
+        // Prepara la conferma eliminazione con i dati del prodotto.
+        const id = bottone.getAttribute("data-id");
+        const nome = bottone.getAttribute("data-nome");
+
         idProdottoElimina.value = id;
         nomeProdottoElimina.textContent = nome;
-        
-        modaleElimina.classList.add('attivo');
+        modaleElimina.classList.add("attivo");
     };
 
     function chiudiModaleElimina() {
-        modaleElimina.classList.remove('attivo');
+        // Chiude la modale di conferma eliminazione.
+        modaleElimina.classList.remove("attivo");
     }
 
-    btnAnnullaElimina.addEventListener('click', chiudiModaleElimina);
-    
-    modaleElimina.addEventListener('click', (e) => {
+    btnAnnullaElimina.addEventListener("click", chiudiModaleElimina);
+
+    // Chiude cliccando fuori.
+    modaleElimina.addEventListener("click", (e) => {
         if (e.target === modaleElimina) chiudiModaleElimina();
     });
 
-    btnConfermaElimina.addEventListener('click', async () => {
+    // Conferma eliminazione e chiude la modale.
+    btnConfermaElimina.addEventListener("click", async () => {
         const id = idProdottoElimina.value;
         if (!id) return;
 
         try {
-            const response = await fetch('/api/elimina_prodotto', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
+            const risposta = await fetch("/api/elimina_prodotto", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: id }),
             });
 
-            if (response.ok) {
-                // Ricarica gestita da socket
-            } else {
-                alert('Errore durante l\'eliminazione.');
+            if (!risposta.ok) {
+                alert("Errore durante l'eliminazione.");
             }
-        } catch (error) {
-            console.error('Errore:', error);
-            alert('Errore di connessione.');
+        } catch (errore) {
+            console.error("Errore:", errore);
+            alert("Errore di connessione.");
         }
+
         chiudiModaleElimina();
     });
 
-    // --- GESTIONE MODALE ELIMINAZIONE ORDINE ---
-    const modaleEliminaOrdine = document.getElementById('modaleEliminaOrdine');
-    const idOrdineElimina = document.getElementById('idOrdineElimina');
-    const idOrdineHidden = document.getElementById('idOrdineHidden');
-    const btnAnnullaEliminaOrdine = document.getElementById('btnAnnullaEliminaOrdine');
-    const btnConfermaEliminaOrdine = document.getElementById('btnConfermaEliminaOrdine');
+    // ==================== Modale: eliminazione ordine ====================
+    const modaleEliminaOrdine = document.getElementById("modaleEliminaOrdine");
+    const idOrdineElimina = document.getElementById("idOrdineElimina");
+    const idOrdineHidden = document.getElementById("idOrdineHidden");
+    const btnAnnullaEliminaOrdine = document.getElementById("btnAnnullaEliminaOrdine");
+    const btnConfermaEliminaOrdine = document.getElementById("btnConfermaEliminaOrdine");
 
-    window.apriModaleEliminaOrdine = function(btn) {
-        const id = btn.getAttribute('data-id');
+    window.apriModaleEliminaOrdine = function (bottone) {
+        // Precompila id ordine e mostra la modale.
+        const id = bottone.getAttribute("data-id");
         if (idOrdineHidden) idOrdineHidden.value = id;
         if (idOrdineElimina) idOrdineElimina.textContent = id;
-        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.add('attivo');
+        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.add("attivo");
     };
 
     function chiudiModaleEliminaOrdine() {
-        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.remove('attivo');
+        // Chiude la modale eliminazione ordine.
+        if (modaleEliminaOrdine) modaleEliminaOrdine.classList.remove("attivo");
     }
 
     if (btnAnnullaEliminaOrdine) {
-        btnAnnullaEliminaOrdine.addEventListener('click', chiudiModaleEliminaOrdine);
+        btnAnnullaEliminaOrdine.addEventListener("click", chiudiModaleEliminaOrdine);
     }
-    
+
+    // Chiude cliccando fuori.
     if (modaleEliminaOrdine) {
-        modaleEliminaOrdine.addEventListener('click', (e) => {
+        modaleEliminaOrdine.addEventListener("click", (e) => {
             if (e.target === modaleEliminaOrdine) chiudiModaleEliminaOrdine();
         });
     }
 
+    // Conferma eliminazione ordine.
     if (btnConfermaEliminaOrdine) {
-        btnConfermaEliminaOrdine.addEventListener('click', async () => {
+        btnConfermaEliminaOrdine.addEventListener("click", async () => {
             const id = idOrdineHidden ? idOrdineHidden.value : null;
             if (!id) return;
 
             try {
-                const response = await fetch('/api/elimina_ordine', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id })
+                const risposta = await fetch("/api/elimina_ordine", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: id }),
                 });
 
-                if (response.ok) {
-                    // Ricarica gestita da socket
-                } else {
-                    alert('Errore durante l\'eliminazione dell\'ordine.');
+                if (!risposta.ok) {
+                    alert("Errore durante l'eliminazione dell'ordine.");
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
+
             chiudiModaleEliminaOrdine();
         });
     }
 
-    // --- GESTIONE MODALE MODIFICA ORDINE ---
-    const modaleModificaOrdine = document.getElementById('modaleModificaOrdine');
-    const formModificaOrdine = document.getElementById('formModificaOrdine');
-    
-    // Inputs
-    const idOrdineModifica = document.getElementById('idOrdineModifica');
-    const clienteModifica = document.getElementById('clienteModifica');
-    const tavoloModifica = document.getElementById('tavoloModifica');
-    const personeModifica = document.getElementById('personeModifica');
-    const pagamentoModifica = document.getElementById('pagamentoModifica');
+    // ==================== Modale: modifica ordine ====================
+    const modaleModificaOrdine = document.getElementById("modaleModificaOrdine");
+    const formModificaOrdine = document.getElementById("formModificaOrdine");
 
-    window.apriModaleModificaOrdine = function(btn) {
-        const tr = btn.closest('tr');
-        const cells = tr.querySelectorAll('td');
-        
-        // Assumo che l'ordine delle colonne sia:
-        // 0: ID, 1: Cliente, 2: Tavolo, 3: Persone, 4: Data, 5: Pagamento, 6: Totale, 7: Azioni, 8: Dettagli
-        
-        const id = tr.getAttribute('data-id');
-        const cliente = cells[1].textContent.trim();
-        const tavolo = cells[2].textContent.trim();
-        const persone = cells[3].textContent.trim();
-        const pagamento = cells[5].textContent.trim();
+    // Campi del form ordine.
+    const idOrdineModifica = document.getElementById("idOrdineModifica");
+    const clienteModifica = document.getElementById("clienteModifica");
+    const tavoloModifica = document.getElementById("tavoloModifica");
+    const personeModifica = document.getElementById("personeModifica");
+    const pagamentoModifica = document.getElementById("pagamentoModifica");
 
+    window.apriModaleModificaOrdine = function (bottone) {
+        // Legge i dati già presenti nella tabella per precompilare la modale.
+        const riga = bottone.closest("tr");
+        const celle = riga.querySelectorAll("td");
+
+        const id = riga.getAttribute("data-id");
+        const cliente = celle[1].textContent.trim();
+        const tavolo = celle[2].textContent.trim();
+        const persone = celle[3].textContent.trim();
+        const pagamento = celle[5].textContent.trim();
+
+        // Converte "-" in stringa vuota per i campi opzionali.
         if (idOrdineModifica) idOrdineModifica.value = id;
         if (clienteModifica) clienteModifica.value = cliente;
-        if (tavoloModifica) tavoloModifica.value = (tavolo === '-' || tavolo === '') ? '' : tavolo;
-        if (personeModifica) personeModifica.value = (persone === '-' || persone === '') ? '' : persone;
+        if (tavoloModifica) tavoloModifica.value = tavolo === "-" || tavolo === "" ? "" : tavolo;
+        if (personeModifica) personeModifica.value = persone === "-" || persone === "" ? "" : persone;
         if (pagamentoModifica) pagamentoModifica.value = pagamento;
 
-        if (modaleModificaOrdine) modaleModificaOrdine.classList.add('attivo');
+        // Mostra la modale.
+        if (modaleModificaOrdine) modaleModificaOrdine.classList.add("attivo");
     };
 
-    window.chiudiModaleModificaOrdine = function() {
-        if (modaleModificaOrdine) modaleModificaOrdine.classList.remove('attivo');
+    window.chiudiModaleModificaOrdine = function () {
+        // Chiude la modale di modifica ordine.
+        if (modaleModificaOrdine) modaleModificaOrdine.classList.remove("attivo");
     };
 
+    // Chiude cliccando fuori.
     if (modaleModificaOrdine) {
-        modaleModificaOrdine.addEventListener('click', (e) => {
-            if (e.target === modaleModificaOrdine) chiudiModaleModificaOrdine();
+        modaleModificaOrdine.addEventListener("click", (e) => {
+            if (e.target === modaleModificaOrdine) window.chiudiModaleModificaOrdine();
         });
     }
 
+    // Invia modifica ordine.
     if (formModificaOrdine) {
-        formModificaOrdine.addEventListener('submit', async (e) => {
+        formModificaOrdine.addEventListener("submit", async (e) => {
             e.preventDefault();
-            
-            const data = {
+
+            const dati = {
                 id_ordine: idOrdineModifica.value,
                 nome_cliente: clienteModifica.value,
                 numero_tavolo: tavoloModifica.value,
                 numero_persone: personeModifica.value,
-                metodo_pagamento: pagamentoModifica.value
+                metodo_pagamento: pagamentoModifica.value,
             };
 
             try {
-                const response = await fetch('/api/modifica_ordine', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const risposta = await fetch("/api/modifica_ordine", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dati),
                 });
 
-                if (response.ok) {
-                    // Ricarica gestita da socket
-                } else {
-                    const err = await response.json();
-                    alert('Errore: ' + (err.errore || 'Impossibile modificare ordine'));
+                if (!risposta.ok) {
+                    const erroreRisposta = await risposta.json();
+                    alert("Errore: " + (erroreRisposta.errore || "Impossibile modificare ordine"));
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
-            
-            chiudiModaleModificaOrdine();
+
+            window.chiudiModaleModificaOrdine();
         });
     }
 
-    // --- GESTIONE MODALE AGGIUNTA PRODOTTO ---
-    const modaleAggiunta = document.getElementById('modaleAggiunta');
-    const formAggiunta = document.getElementById('formAggiunta');
-    const btnAnnullaAggiunta = document.getElementById('btnAnnullaAggiunta');
-    
-    // Inputs
-    const nomeProdottoAggiunta = document.getElementById('nomeProdottoAggiunta');
-    const categoriaDashboardAggiunta = document.getElementById('categoriaDashboardAggiunta');
-    const categoriaMenuAggiunta = document.getElementById('categoriaMenuAggiunta');
-    const prezzoProdottoAggiunta = document.getElementById('prezzoProdottoAggiunta');
-    const quantitaProdottoAggiunta = document.getElementById('quantitaProdottoAggiunta');
-    const toggleDisponibilitaAggiunta = document.getElementById('toggleDisponibilitaAggiunta');
-    const labelStatoAggiunta = document.getElementById('labelStatoAggiunta');
+    // ==================== Modale: aggiunta prodotto ====================
+    const modaleAggiunta = document.getElementById("modaleAggiunta");
+    const formAggiunta = document.getElementById("formAggiunta");
+    const btnAnnullaAggiunta = document.getElementById("btnAnnullaAggiunta");
 
-    // Aggiorna label switch
+    // Elementi del form di aggiunta.
+    const nomeProdottoAggiunta = document.getElementById("nomeProdottoAggiunta");
+    const categoriaDashboardAggiunta = document.getElementById("categoriaDashboardAggiunta");
+    const categoriaMenuAggiunta = document.getElementById("categoriaMenuAggiunta");
+    const prezzoProdottoAggiunta = document.getElementById("prezzoProdottoAggiunta");
+    const quantitaProdottoAggiunta = document.getElementById("quantitaProdottoAggiunta");
+    const toggleDisponibilitaAggiunta = document.getElementById("toggleDisponibilitaAggiunta");
+    const labelStatoAggiunta = document.getElementById("labelStatoAggiunta");
+
     function aggiornaLabelStatoAggiunta() {
+        // Aggiorna testo e classi della label "Disponibile/Non disponibile".
         if (!labelStatoAggiunta || !toggleDisponibilitaAggiunta) return;
+
         const disponibile = toggleDisponibilitaAggiunta.checked;
         labelStatoAggiunta.textContent = disponibile ? "Disponibile" : "Non disponibile";
-        
+
         if (disponibile) {
             labelStatoAggiunta.classList.add("testo-attivo");
             labelStatoAggiunta.classList.remove("testo-inattivo");
@@ -598,320 +633,328 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    // Aggiorna label quando cambia il toggle.
     if (toggleDisponibilitaAggiunta) {
-        toggleDisponibilitaAggiunta.addEventListener('change', aggiornaLabelStatoAggiunta);
+        toggleDisponibilitaAggiunta.addEventListener("change", aggiornaLabelStatoAggiunta);
     }
 
-    // Auto-switch disponibilità in base alla quantità
+    // Quando cambia quantità, aggiorna automaticamente il toggle.
     if (quantitaProdottoAggiunta) {
-        quantitaProdottoAggiunta.addEventListener('input', () => {
-            const qta = parseInt(quantitaProdottoAggiunta.value) || 0;
-            if (qta === 0) {
-                toggleDisponibilitaAggiunta.checked = false;
-            } else if (qta > 0) {
-                toggleDisponibilitaAggiunta.checked = true;
-            }
+        quantitaProdottoAggiunta.addEventListener("input", () => {
+            const quantita = parseInt(quantitaProdottoAggiunta.value) || 0;
+            toggleDisponibilitaAggiunta.checked = quantita > 0;
             aggiornaLabelStatoAggiunta();
         });
     }
 
-    window.apriModaleAggiunta = function() {
+    window.apriModaleAggiunta = function () {
+        // Apre la modale e imposta i default.
         if (!modaleAggiunta) return;
-        
-        // Reset form
+
         formAggiunta.reset();
-        // Default: disponibile
         if (toggleDisponibilitaAggiunta) toggleDisponibilitaAggiunta.checked = true;
         aggiornaLabelStatoAggiunta();
-        
-        modaleAggiunta.classList.add('attivo');
+
+        modaleAggiunta.classList.add("attivo");
     };
 
     function chiudiModaleAggiunta() {
-        if (modaleAggiunta) modaleAggiunta.classList.remove('attivo');
+        // Chiude la modale aggiunta prodotto.
+        if (modaleAggiunta) modaleAggiunta.classList.remove("attivo");
     }
 
     if (btnAnnullaAggiunta) {
-        btnAnnullaAggiunta.addEventListener('click', chiudiModaleAggiunta);
+        btnAnnullaAggiunta.addEventListener("click", chiudiModaleAggiunta);
     }
 
+    // Chiude cliccando fuori.
     if (modaleAggiunta) {
-        modaleAggiunta.addEventListener('click', (e) => {
+        modaleAggiunta.addEventListener("click", (e) => {
             if (e.target === modaleAggiunta) chiudiModaleAggiunta();
         });
     }
 
+    // Invia aggiunta prodotto.
     if (formAggiunta) {
-        formAggiunta.addEventListener('submit', async (e) => {
+        formAggiunta.addEventListener("submit", async (e) => {
             e.preventDefault();
-            
-            const payload = {
+
+            const dati = {
                 nome: nomeProdottoAggiunta.value,
                 categoria_dashboard: categoriaDashboardAggiunta.value,
                 categoria_menu: categoriaMenuAggiunta.value,
                 prezzo: parseFloat(prezzoProdottoAggiunta.value),
                 quantita: parseInt(quantitaProdottoAggiunta.value),
-                disponibile: toggleDisponibilitaAggiunta.checked
+                disponibile: toggleDisponibilitaAggiunta.checked,
             };
 
             try {
-                const response = await fetch('/api/aggiungi_prodotto', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                const risposta = await fetch("/api/aggiungi_prodotto", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dati),
                 });
 
-                if (response.ok) {
-                    // Ricarica gestita da socket
-                } else {
-                    const err = await response.json();
-                    alert('Errore: ' + (err.errore || 'Impossibile aggiungere prodotto'));
+                if (!risposta.ok) {
+                    const erroreRisposta = await risposta.json();
+                    alert("Errore: " + (erroreRisposta.errore || "Impossibile aggiungere prodotto"));
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
 
             chiudiModaleAggiunta();
         });
     }
 
-    // --- GESTIONE MODALE MODIFICA UTENTE ---
-    const modaleModificaUtente = document.getElementById('modaleModificaUtente');
-    const formModificaUtente = document.getElementById('formModificaUtente');
-    const btnAnnullaModificaUtente = document.getElementById('btnAnnullaModificaUtente');
-    
-    // Inputs
-    const idUtenteModifica = document.getElementById('idUtenteModifica');
-    const usernameModifica = document.getElementById('usernameModifica');
-    const passwordModifica = document.getElementById('passwordModifica');
-    const isAdminModifica = document.getElementById('isAdminModifica');
-    const isAttivoModifica = document.getElementById('isAttivoModifica');
+    // ==================== Modale: modifica utente ====================
+    const modaleModificaUtente = document.getElementById("modaleModificaUtente");
+    const formModificaUtente = document.getElementById("formModificaUtente");
+    const btnAnnullaModificaUtente = document.getElementById("btnAnnullaModificaUtente");
 
-    window.apriModaleModificaUtente = function(btn) {
-        const id = btn.getAttribute('data-id');
-        const username = btn.getAttribute('data-username');
-        const isAdmin = btn.getAttribute('data-is-admin') === '1';
-        const isAttivo = btn.getAttribute('data-attivo') === '1';
-        const permessiStr = btn.getAttribute('data-permessi') || '';
-        const permessi = permessiStr ? permessiStr.split(',').filter(Boolean) : [];
+    // Campi del form utente.
+    const idUtenteModifica = document.getElementById("idUtenteModifica");
+    const usernameModifica = document.getElementById("usernameModifica");
+    const passwordModifica = document.getElementById("passwordModifica");
+    const isAdminModifica = document.getElementById("isAdminModifica");
+    const isAttivoModifica = document.getElementById("isAttivoModifica");
+
+    window.apriModaleModificaUtente = function (bottone) {
+        // Estrae dati utente dai data-attribute del bottone.
+        const id = bottone.getAttribute("data-id");
+        const username = bottone.getAttribute("data-username");
+        const isAdmin = bottone.getAttribute("data-is-admin") === "1";
+        const isAttivo = bottone.getAttribute("data-attivo") === "1";
+
+        // Permessi arrivano come stringa "A,B,C".
+        const permessiStr = bottone.getAttribute("data-permessi") || "";
+        const permessi = permessiStr ? permessiStr.split(",").filter(Boolean) : [];
         const permessiSet = new Set(permessi);
 
+        // Precompila i campi base.
         if (idUtenteModifica) idUtenteModifica.value = id;
         if (usernameModifica) usernameModifica.value = username;
-        if (passwordModifica) passwordModifica.value = ''; // Reset password
-        
+        if (passwordModifica) passwordModifica.value = "";
+
+        // Toggle ruolo amministratore.
         if (isAdminModifica) {
             isAdminModifica.checked = isAdmin;
-            // Trigger change event to update label style
-            isAdminModifica.dispatchEvent(new Event('change'));
+            isAdminModifica.dispatchEvent(new Event("change"));
         }
-        
+
+        // Toggle stato attivo.
         if (isAttivoModifica) {
             isAttivoModifica.checked = isAttivo;
-            // Trigger change event
-            isAttivoModifica.dispatchEvent(new Event('change'));
+            isAttivoModifica.dispatchEvent(new Event("change"));
         }
 
-        const permessiCheckboxes = formModificaUtente
-            ? formModificaUtente.querySelectorAll('input[name="permessi"]')
-            : [];
-
-        permessiCheckboxes.forEach(cb => {
+        // Seleziona le checkbox permessi.
+        const checkboxPermessi = formModificaUtente ? formModificaUtente.querySelectorAll('input[name="permessi"]') : [];
+        checkboxPermessi.forEach((cb) => {
             cb.checked = permessiSet.has(cb.value);
         });
 
-        if (modaleModificaUtente) modaleModificaUtente.classList.add('attivo');
+        // Mostra la modale.
+        if (modaleModificaUtente) modaleModificaUtente.classList.add("attivo");
     };
 
-    window.chiudiModaleModificaUtente = function() {
-        if (modaleModificaUtente) modaleModificaUtente.classList.remove('attivo');
+    window.chiudiModaleModificaUtente = function () {
+        // Chiude la modale modifica utente.
+        if (modaleModificaUtente) modaleModificaUtente.classList.remove("attivo");
     };
 
     if (btnAnnullaModificaUtente) {
-        btnAnnullaModificaUtente.addEventListener('click', chiudiModaleModificaUtente);
+        btnAnnullaModificaUtente.addEventListener("click", window.chiudiModaleModificaUtente);
     }
 
+    // Chiude cliccando fuori.
     if (modaleModificaUtente) {
-        modaleModificaUtente.addEventListener('click', (e) => {
-            if (e.target === modaleModificaUtente) chiudiModaleModificaUtente();
+        modaleModificaUtente.addEventListener("click", (e) => {
+            if (e.target === modaleModificaUtente) window.chiudiModaleModificaUtente();
         });
     }
 
+    // Invia modifica utente.
     if (formModificaUtente) {
-        formModificaUtente.addEventListener('submit', async (e) => {
+        formModificaUtente.addEventListener("submit", async (e) => {
             e.preventDefault();
-            
-            const permessiSelezionati = Array.from(formModificaUtente.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
+
+            const permessiSelezionati = Array.from(formModificaUtente.querySelectorAll('input[name="permessi"]:checked')).map((cb) => cb.value);
             const permessiUnici = Array.from(new Set(permessiSelezionati));
 
-            const data = {
+            const dati = {
                 id_utente: idUtenteModifica.value,
                 username: usernameModifica.value,
-                password: passwordModifica.value, // Can be empty
+                password: passwordModifica.value,
                 is_admin: isAdminModifica.checked,
                 attivo: isAttivoModifica.checked,
-                permessi: permessiUnici
+                permessi: permessiUnici,
             };
 
             try {
-                const response = await fetch('/api/modifica_utente', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const risposta = await fetch("/api/modifica_utente", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dati),
                 });
 
-                if (response.ok) {
-                    // Reload page to show changes
-                    window.location.reload(); 
+                if (risposta.ok) {
+                    // Ricarica pagina per aggiornare la tabella utenti.
+                    window.location.reload();
                 } else {
-                    const err = await response.json();
-                    alert('Errore: ' + (err.errore || 'Impossibile modificare utente'));
+                    const erroreRisposta = await risposta.json();
+                    alert("Errore: " + (erroreRisposta.errore || "Impossibile modificare utente"));
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
-            
-            chiudiModaleModificaUtente();
+
+            window.chiudiModaleModificaUtente();
         });
     }
 
-    // --- GESTIONE MODALE AGGIUNTA UTENTE ---
-    const modaleAggiuntaUtente = document.getElementById('modaleAggiuntaUtente');
-    const formAggiuntaUtente = document.getElementById('formAggiuntaUtente');
-    const btnAnnullaAggiuntaUtente = document.getElementById('btnAnnullaAggiuntaUtente');
+    // ==================== Modale: aggiunta utente ====================
+    const modaleAggiuntaUtente = document.getElementById("modaleAggiuntaUtente");
+    const formAggiuntaUtente = document.getElementById("formAggiuntaUtente");
+    const btnAnnullaAggiuntaUtente = document.getElementById("btnAnnullaAggiuntaUtente");
 
-    // Inputs
-    const usernameAggiunta = document.getElementById('usernameAggiunta');
-    const passwordAggiunta = document.getElementById('passwordAggiunta');
-    const isAdminAggiunta = document.getElementById('isAdminAggiunta');
-    const isAttivoAggiunta = document.getElementById('isAttivoAggiunta');
+    // Campi del form di aggiunta.
+    const usernameAggiunta = document.getElementById("usernameAggiunta");
+    const passwordAggiunta = document.getElementById("passwordAggiunta");
+    const isAdminAggiunta = document.getElementById("isAdminAggiunta");
+    const isAttivoAggiunta = document.getElementById("isAttivoAggiunta");
 
-    window.apriModaleAggiuntaUtente = function() {
+    window.apriModaleAggiuntaUtente = function () {
+        // Reset e default: utente standard e attivo.
         if (!modaleAggiuntaUtente) return;
-        
-        // Reset form
+
         formAggiuntaUtente.reset();
-        
-        // Default: Utente Standard, Attivo
+
         if (isAdminAggiunta) {
             isAdminAggiunta.checked = false;
-            isAdminAggiunta.dispatchEvent(new Event('change'));
+            isAdminAggiunta.dispatchEvent(new Event("change"));
         }
         if (isAttivoAggiunta) {
             isAttivoAggiunta.checked = true;
-            isAttivoAggiunta.dispatchEvent(new Event('change'));
+            isAttivoAggiunta.dispatchEvent(new Event("change"));
         }
 
-        modaleAggiuntaUtente.classList.add('attivo');
+        modaleAggiuntaUtente.classList.add("attivo");
     };
 
-    window.chiudiModaleAggiuntaUtente = function() {
-        if (modaleAggiuntaUtente) modaleAggiuntaUtente.classList.remove('attivo');
+    window.chiudiModaleAggiuntaUtente = function () {
+        // Chiude la modale aggiunta utente.
+        if (modaleAggiuntaUtente) modaleAggiuntaUtente.classList.remove("attivo");
     };
 
     if (btnAnnullaAggiuntaUtente) {
-        btnAnnullaAggiuntaUtente.addEventListener('click', chiudiModaleAggiuntaUtente);
+        btnAnnullaAggiuntaUtente.addEventListener("click", window.chiudiModaleAggiuntaUtente);
     }
 
+    // Chiude cliccando fuori.
     if (modaleAggiuntaUtente) {
-        modaleAggiuntaUtente.addEventListener('click', (e) => {
-            if (e.target === modaleAggiuntaUtente) chiudiModaleAggiuntaUtente();
+        modaleAggiuntaUtente.addEventListener("click", (e) => {
+            if (e.target === modaleAggiuntaUtente) window.chiudiModaleAggiuntaUtente();
         });
     }
 
+    // Invia creazione utente.
     if (formAggiuntaUtente) {
-        formAggiuntaUtente.addEventListener('submit', async (e) => {
+        formAggiuntaUtente.addEventListener("submit", async (e) => {
             e.preventDefault();
-            
-            // Collect checked permissions inside the add modal
-            const permessiSelezionati = Array.from(formAggiuntaUtente.querySelectorAll('input[name="permessi"]:checked')).map(cb => cb.value);
 
-            const data = {
+            const permessiSelezionati = Array.from(formAggiuntaUtente.querySelectorAll('input[name="permessi"]:checked')).map((cb) => cb.value);
+
+            const dati = {
                 username: usernameAggiunta.value,
                 password: passwordAggiunta.value,
                 is_admin: isAdminAggiunta.checked,
                 attivo: isAttivoAggiunta.checked,
-                permessi: permessiSelezionati
+                permessi: permessiSelezionati,
             };
 
             try {
-                const response = await fetch('/api/aggiungi_utente', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const risposta = await fetch("/api/aggiungi_utente", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dati),
                 });
 
-                if (response.ok) {
+                if (risposta.ok) {
                     window.location.reload();
                 } else {
-                    const err = await response.json();
-                    alert('Errore: ' + (err.errore || 'Impossibile aggiungere utente'));
+                    const erroreRisposta = await risposta.json();
+                    alert("Errore: " + (erroreRisposta.errore || "Impossibile aggiungere utente"));
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
 
-            chiudiModaleAggiuntaUtente();
+            window.chiudiModaleAggiuntaUtente();
         });
     }
 
-    // --- GESTIONE MODALE ELIMINAZIONE UTENTE ---
-    const modaleEliminaUtente = document.getElementById('modaleEliminaUtente');
-    const usernameElimina = document.getElementById('usernameElimina');
-    const idUtenteElimina = document.getElementById('idUtenteElimina');
-    const btnAnnullaEliminaUtente = document.getElementById('btnAnnullaEliminaUtente');
-    const btnConfermaEliminaUtente = document.getElementById('btnConfermaEliminaUtente');
+    // ==================== Modale: eliminazione utente ====================
+    const modaleEliminaUtente = document.getElementById("modaleEliminaUtente");
+    const usernameElimina = document.getElementById("usernameElimina");
+    const idUtenteElimina = document.getElementById("idUtenteElimina");
+    const btnAnnullaEliminaUtente = document.getElementById("btnAnnullaEliminaUtente");
+    const btnConfermaEliminaUtente = document.getElementById("btnConfermaEliminaUtente");
 
-    window.apriModaleEliminaUtente = function(btn) {
-        const id = btn.getAttribute('data-id');
-        const username = btn.getAttribute('data-username');
-        
+    window.apriModaleEliminaUtente = function (bottone) {
+        // Precompila i dati utente da eliminare e mostra la modale.
+        const id = bottone.getAttribute("data-id");
+        const username = bottone.getAttribute("data-username");
+
         if (idUtenteElimina) idUtenteElimina.value = id;
         if (usernameElimina) usernameElimina.textContent = username;
-        
-        if (modaleEliminaUtente) modaleEliminaUtente.classList.add('attivo');
+        if (modaleEliminaUtente) modaleEliminaUtente.classList.add("attivo");
     };
 
-    window.chiudiModaleEliminaUtente = function() {
-        if (modaleEliminaUtente) modaleEliminaUtente.classList.remove('attivo');
+    window.chiudiModaleEliminaUtente = function () {
+        // Chiude la modale eliminazione utente.
+        if (modaleEliminaUtente) modaleEliminaUtente.classList.remove("attivo");
     };
 
     if (btnAnnullaEliminaUtente) {
-        btnAnnullaEliminaUtente.addEventListener('click', chiudiModaleEliminaUtente);
+        btnAnnullaEliminaUtente.addEventListener("click", window.chiudiModaleEliminaUtente);
     }
-    
+
+    // Chiude cliccando fuori.
     if (modaleEliminaUtente) {
-        modaleEliminaUtente.addEventListener('click', (e) => {
-            if (e.target === modaleEliminaUtente) chiudiModaleEliminaUtente();
+        modaleEliminaUtente.addEventListener("click", (e) => {
+            if (e.target === modaleEliminaUtente) window.chiudiModaleEliminaUtente();
         });
     }
 
+    // Conferma eliminazione utente.
     if (btnConfermaEliminaUtente) {
-        btnConfermaEliminaUtente.addEventListener('click', async () => {
+        btnConfermaEliminaUtente.addEventListener("click", async () => {
             const id = idUtenteElimina ? idUtenteElimina.value : null;
             if (!id) return;
 
             try {
-                const response = await fetch('/api/elimina_utente', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id_utente: id })
+                const risposta = await fetch("/api/elimina_utente", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id_utente: id }),
                 });
 
-                if (response.ok) {
+                if (risposta.ok) {
                     window.location.reload();
                 } else {
-                    const err = await response.json();
-                    alert('Errore: ' + (err.errore || 'Impossibile eliminare utente'));
+                    const erroreRisposta = await risposta.json();
+                    alert("Errore: " + (erroreRisposta.errore || "Impossibile eliminare utente"));
                 }
-            } catch (error) {
-                console.error('Errore:', error);
-                alert('Errore di connessione.');
+            } catch (errore) {
+                console.error("Errore:", errore);
+                alert("Errore di connessione.");
             }
-            chiudiModaleEliminaUtente();
+
+            window.chiudiModaleEliminaUtente();
         });
     }
 });

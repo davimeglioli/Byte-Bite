@@ -1,210 +1,263 @@
-import pytest
 from app import ottieni_db, socketio
 
-def setup_admin(client):
-    """Helper per creare e loggare un admin."""
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
-                     ("admin_crud", "hash", 1, 1))
-        admin_id = conn.execute("SELECT id FROM utenti WHERE username='admin_crud'").fetchone()["id"]
-        conn.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)", (admin_id, "AMMINISTRAZIONE"))
-        conn.commit()
+# ==================== Amministrazione (CRUD) ====================
 
-    with client.session_transaction() as sess:
-        sess["id_utente"] = admin_id
-        sess["username"] = "admin_crud"
-        sess["is_admin"] = 1
-    return admin_id
 
-def test_gestione_prodotti(client):
-    """Test completo CRUD prodotti."""
-    setup_admin(client)
-    
-    # 1. Aggiungi Prodotto
-    payload_add = {
+def imposta_admin(cliente):
+    # Crea una sessione admin e assegna permesso AMMINISTRAZIONE.
+    with ottieni_db() as connessione:
+        # Inserisce admin nel DB temporaneo.
+        connessione.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
+            ("admin_crud", "hash", 1, 1),
+        )
+        # Recupera id dell'admin.
+        id_admin = connessione.execute(
+            "SELECT id FROM utenti WHERE username = 'admin_crud'"
+        ).fetchone()["id"]
+        # Inserisce permesso pagina.
+        connessione.execute(
+            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)",
+            (id_admin, "AMMINISTRAZIONE"),
+        )
+        # Commit delle modifiche.
+        connessione.commit()
+
+    # Simula sessione autenticata.
+    with cliente.session_transaction() as sessione:
+        sessione["id_utente"] = id_admin
+        sessione["username"] = "admin_crud"
+        sessione["is_admin"] = 1
+
+    # Ritorna id admin per eventuali controlli.
+    return id_admin
+
+
+def test_crud_prodotti(cliente):
+    # Prepara contesto admin.
+    imposta_admin(cliente)
+
+    # Crea un prodotto via API.
+    payload_aggiunta = {
         "nome": "Nuovo Piatto",
         "categoria_dashboard": "Cucina",
         "categoria_menu": "Primi",
         "prezzo": 12.5,
         "quantita": 10,
-        "disponibile": True
+        "disponibile": True,
     }
-    resp = client.post('/api/aggiungi_prodotto', json=payload_add)
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        prod = conn.execute("SELECT * FROM prodotti WHERE nome='Nuovo Piatto'").fetchone()
-        assert prod is not None
-        prod_id = prod["id"]
-        assert prod["quantita"] == 10
-        assert prod["disponibile"] == 1
+    risposta = cliente.post("/api/aggiungi_prodotto", json=payload_aggiunta)
+    assert risposta.status_code == 200
 
-    # 2. Modifica Prodotto
-    payload_mod = {
-        "id": prod_id,
+    # Recupera id prodotto creato e verifica campi principali.
+    with ottieni_db() as connessione:
+        prodotto = connessione.execute(
+            "SELECT * FROM prodotti WHERE nome = 'Nuovo Piatto'"
+        ).fetchone()
+        assert prodotto is not None
+        id_prodotto = prodotto["id"]
+        assert prodotto["quantita"] == 10
+        assert prodotto["disponibile"] == 1
+
+    # Modifica il prodotto via API.
+    payload_modifica = {
+        "id": id_prodotto,
         "nome": "Piatto Modificato",
         "categoria_dashboard": "Cucina",
-        "quantita": 5
+        "quantita": 5,
     }
-    resp = client.post('/api/modifica_prodotto', json=payload_mod)
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        prod = conn.execute("SELECT * FROM prodotti WHERE id=?", (prod_id,)).fetchone()
-        assert prod["nome"] == "Piatto Modificato"
-        assert prod["quantita"] == 5
+    risposta = cliente.post("/api/modifica_prodotto", json=payload_modifica)
+    assert risposta.status_code == 200
 
-    # 3. Rifornisci Prodotto
-    payload_refill = {
-        "id": prod_id,
-        "quantita": 20
-    }
-    resp = client.post('/api/rifornisci_prodotto', json=payload_refill)
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        qty = conn.execute("SELECT quantita FROM prodotti WHERE id=?", (prod_id,)).fetchone()["quantita"]
-        assert qty == 25 # 5 + 20
+    # Verifica modifica persistita.
+    with ottieni_db() as connessione:
+        prodotto = connessione.execute(
+            "SELECT * FROM prodotti WHERE id = ?",
+            (id_prodotto,),
+        ).fetchone()
+        assert prodotto["nome"] == "Piatto Modificato"
+        assert prodotto["quantita"] == 5
 
-    # 4. Elimina Prodotto
-    resp = client.post('/api/elimina_prodotto', json={"id": prod_id})
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        prod = conn.execute("SELECT * FROM prodotti WHERE id=?", (prod_id,)).fetchone()
-        assert prod is None
+    # Rifornisce il prodotto via API.
+    payload_rifornimento = {"id": id_prodotto, "quantita": 20}
+    risposta = cliente.post("/api/rifornisci_prodotto", json=payload_rifornimento)
+    assert risposta.status_code == 200
 
-def test_gestione_ordini(client):
-    """Test modifica ed eliminazione ordini."""
-    setup_admin(client)
-    
-    # Setup ordine esistente
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (300, 'Pizza', 10, 100, 0, 'Pizze', 'Cucina')")
-        conn.execute("INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (300, 'Mario', 5, CURRENT_TIMESTAMP, 0, 0, 'Contanti')")
-        conn.execute("INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (300, 300, 2, 'In Attesa')")
-        # Decrementa magazzino per simulare ordine reale
-        conn.execute("UPDATE prodotti SET quantita=98 WHERE id=300")
-        conn.commit()
+    # Verifica quantità aggiornata.
+    with ottieni_db() as connessione:
+        quantita = connessione.execute(
+            "SELECT quantita FROM prodotti WHERE id = ?",
+            (id_prodotto,),
+        ).fetchone()["quantita"]
+        assert quantita == 25
 
-    # 1. Dettagli Ordine
-    resp = client.get('/api/ordine/300/dettagli')
-    assert resp.status_code == 200
-    assert b"Pizza" in resp.data
-    assert b"2" in resp.data # Quantità
+    # Elimina il prodotto via API.
+    risposta = cliente.post("/api/elimina_prodotto", json={"id": id_prodotto})
+    assert risposta.status_code == 200
 
-    # 2. Modifica Ordine
-    payload_mod = {
+    # Verifica che il prodotto non esista più.
+    with ottieni_db() as connessione:
+        prodotto = connessione.execute(
+            "SELECT * FROM prodotti WHERE id = ?",
+            (id_prodotto,),
+        ).fetchone()
+        assert prodotto is None
+
+
+def test_crud_ordini(cliente):
+    # Prepara contesto admin.
+    imposta_admin(cliente)
+
+    # Prepara dati ordine e prodotto correlato.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (300, 'Pizza', 10, 100, 0, 'Pizze', 'Cucina')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (300, 'Mario', 5, CURRENT_TIMESTAMP, 0, 0, 'Contanti')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (300, 300, 2, 'In Attesa')"
+        )
+        # Simula decremento magazzino pre-esistente.
+        connessione.execute("UPDATE prodotti SET quantita = 98 WHERE id = 300")
+        connessione.commit()
+
+    # Richiede dettagli ordine (HTML).
+    risposta = cliente.get("/api/ordine/300/dettagli")
+    assert risposta.status_code == 200
+    assert b"Pizza" in risposta.data
+    assert b"2" in risposta.data
+
+    # Modifica ordine via API.
+    payload_modifica = {
         "id_ordine": 300,
         "nome_cliente": "Luigi",
         "numero_tavolo": 10,
         "numero_persone": 4,
-        "metodo_pagamento": "Carta"
+        "metodo_pagamento": "Carta",
     }
-    resp = client.post('/api/modifica_ordine', json=payload_mod)
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        ord = conn.execute("SELECT * FROM ordini WHERE id=300").fetchone()
-        assert ord["nome_cliente"] == "Luigi"
-        assert ord["numero_tavolo"] == 10
-        assert ord["metodo_pagamento"] == "Carta"
+    risposta = cliente.post("/api/modifica_ordine", json=payload_modifica)
+    assert risposta.status_code == 200
 
-    # 3. Elimina Ordine
-    resp = client.post('/api/elimina_ordine', json={"id": 300})
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        ord = conn.execute("SELECT * FROM ordini WHERE id=300").fetchone()
-        assert ord is None
-        # Verifica ripristino magazzino
-        qty = conn.execute("SELECT quantita FROM prodotti WHERE id=300").fetchone()["quantita"]
-        assert qty == 100 # 98 + 2
+    # Verifica aggiornamento ordine.
+    with ottieni_db() as connessione:
+        ordine = connessione.execute("SELECT * FROM ordini WHERE id = 300").fetchone()
+        assert ordine["nome_cliente"] == "Luigi"
+        assert ordine["numero_tavolo"] == 10
+        assert ordine["metodo_pagamento"] == "Carta"
 
-def test_elimina_utente(client):
-    """Test eliminazione utente."""
-    my_id = setup_admin(client)
-    
-    # Setup utente da eliminare
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
-                     ("to_delete", "hash", 0, 1))
-        target_id = conn.execute("SELECT id FROM utenti WHERE username='to_delete'").fetchone()["id"]
-        conn.commit()
+    # Elimina ordine via API.
+    risposta = cliente.post("/api/elimina_ordine", json={"id": 300})
+    assert risposta.status_code == 200
 
-    # Tentativo eliminazione se stessi
-    # resp = client.post('/api/elimina_utente', json={"id_utente": my_id})
-    # Il backend potrebbe ritornare 400 se c'è controllo (riga 1021 app.py)
-    
-    resp = client.post('/api/elimina_utente', json={"id_utente": target_id})
-    if resp.status_code == 302:
-        print(f"Redirected to: {resp.location}")
-    assert resp.status_code == 200
-    
-    with ottieni_db() as conn:
-        user = conn.execute("SELECT * FROM utenti WHERE id=?", (target_id,)).fetchone()
-        assert user is None
+    # Verifica eliminazione ordine e ripristino magazzino.
+    with ottieni_db() as connessione:
+        ordine = connessione.execute("SELECT * FROM ordini WHERE id = 300").fetchone()
+        assert ordine is None
+        quantita = connessione.execute(
+            "SELECT quantita FROM prodotti WHERE id = 300"
+        ).fetchone()["quantita"]
+        assert quantita == 100
 
-def test_api_extra_admin(client):
-    """Test rotte extra admin (HTML rows, JSON order details)."""
-    setup_admin(client)
+def test_elimina_utente(cliente):
+    # Prepara contesto admin.
+    imposta_admin(cliente)
 
-    # 1. Setup dati
-    with ottieni_db() as conn:
-        conn.execute("INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (400, 'Test Extra', 5, 50, 0, 'Extra', 'Bar')")
-        conn.execute("INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (400, 'Extra Client', 9, CURRENT_TIMESTAMP, 0, 0, 'Carta')")
-        conn.execute("INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (400, 400, 1, 'Pronto')")
-        conn.commit()
+    # Inserisce utente da eliminare.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
+            ("to_delete", "hash", 0, 1),
+        )
+        id_target = connessione.execute(
+            "SELECT id FROM utenti WHERE username = 'to_delete'"
+        ).fetchone()["id"]
+        connessione.commit()
 
-    # 2. API JSON Ordine
-    resp = client.get('/api/ordine/400')
-    assert resp.status_code == 200
-    assert resp.json["nome_cliente"] == "Extra Client"
-    assert len(resp.json["items"]) == 1
+    # Invoca endpoint di eliminazione utente.
+    risposta = cliente.post("/api/elimina_utente", json={"id_utente": id_target})
+    assert risposta.status_code == 200
 
-    # 3. HTML Rows Ordini
-    resp = client.get('/api/amministrazione/ordini_html')
-    assert resp.status_code == 200
-    assert b"Extra Client" in resp.data
+    # Verifica che l'utente sia stato rimosso.
+    with ottieni_db() as connessione:
+        utente = connessione.execute(
+            "SELECT * FROM utenti WHERE id = ?",
+            (id_target,),
+        ).fetchone()
+        assert utente is None
 
-    # 4. HTML Rows Prodotti
-    resp = client.get('/api/amministrazione/prodotti_html')
-    assert resp.status_code == 200
-    assert b"Test Extra" in resp.data
+def test_api_extra_amministrazione(cliente):
+    # Prepara contesto admin.
+    imposta_admin(cliente)
 
-def test_ricalcola_statistiche_direct(client):
-    """Test diretto della funzione ricalcola_statistiche."""
+    # Prepara dati minimi per testare rotte extra.
+    with ottieni_db() as connessione:
+        connessione.execute(
+            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (400, 'Test Extra', 5, 50, 0, 'Extra', 'Bar')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (400, 'Extra Client', 9, CURRENT_TIMESTAMP, 0, 0, 'Carta')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (400, 400, 1, 'Pronto')"
+        )
+        connessione.commit()
+
+    # Verifica rotta JSON ordine.
+    risposta = cliente.get("/api/ordine/400")
+    assert risposta.status_code == 200
+    assert risposta.json["nome_cliente"] == "Extra Client"
+    assert len(risposta.json["items"]) == 1
+
+    # Verifica rotta HTML righe ordini.
+    risposta = cliente.get("/api/amministrazione/ordini_html")
+    assert risposta.status_code == 200
+    assert b"Extra Client" in risposta.data
+
+    # Verifica rotta HTML righe prodotti.
+    risposta = cliente.get("/api/amministrazione/prodotti_html")
+    assert risposta.status_code == 200
+    assert b"Test Extra" in risposta.data
+
+def test_ricalcola_statistiche_diretto(cliente):
+    # Import locale per coprire chiamata diretta.
     from app import ricalcola_statistiche
-    
-    # Setup dati
-    with ottieni_db() as conn:
-        # Pulisci stats
-        conn.execute("DELETE FROM statistiche_totali")
-        conn.execute("DELETE FROM statistiche_categorie")
-        conn.execute("DELETE FROM statistiche_ore")
-        
-        # Ordine completato
-        conn.execute("INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (500, 'Stat Prod', 10, 100, 0, 'Test', 'Cucina')")
-        conn.execute("INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (500, 'Stat Client', 1, '2025-01-01 12:00:00', 1, 0, 'Contanti')")
-        conn.execute("INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (500, 500, 2, 'Completato')")
-        conn.commit()
-    
-    # Esegui funzione (mocked socketio already handles emissione_sicura if it uses it? No, emissione_sicura uses socketio.emit)
-    # emissione_sicura is likely using socketio.emit. Mock socketio.emit just in case.
-    
+
+    # Pulisce tabelle statistiche e inserisce un ordine completato.
+    with ottieni_db() as connessione:
+        connessione.execute("DELETE FROM statistiche_totali")
+        connessione.execute("DELETE FROM statistiche_categorie")
+        connessione.execute("DELETE FROM statistiche_ore")
+
+        connessione.execute(
+            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (500, 'Stat Prod', 10, 100, 0, 'Test', 'Cucina')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (500, 'Stat Client', 1, '2025-01-01 12:00:00', 1, 0, 'Contanti')"
+        )
+        connessione.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (500, 500, 2, 'Completato')"
+        )
+        connessione.commit()
+
+    # Disabilita emit SocketIO per isolare il test.
     original_emit = socketio.emit
     socketio.emit = lambda *args, **kwargs: None
-    
+
+    # Esegue il ricalcolo e ripristina emit.
     try:
         ricalcola_statistiche()
     finally:
         socketio.emit = original_emit
 
-    # Verifica DB
-    with ottieni_db() as conn:
-        tot = conn.execute("SELECT * FROM statistiche_totali").fetchone()
+    # Verifica che le statistiche siano state aggiornate.
+    with ottieni_db() as connessione:
+        tot = connessione.execute("SELECT * FROM statistiche_totali").fetchone()
         assert tot["ordini_totali"] >= 1
-        assert tot["totale_incasso"] >= 20 # 2 * 10
-        
-        cat = conn.execute("SELECT * FROM statistiche_categorie WHERE categoria_dashboard='Cucina'").fetchone()
+        assert tot["totale_incasso"] >= 20
+
+        cat = connessione.execute(
+            "SELECT * FROM statistiche_categorie WHERE categoria_dashboard = 'Cucina'"
+        ).fetchone()
         assert cat["totale"] >= 2

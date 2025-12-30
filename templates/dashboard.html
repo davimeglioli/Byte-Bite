@@ -1,83 +1,100 @@
 <!DOCTYPE html>
 <html lang="it">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
-        <title>Dashboard {{categoria}}</title>
-    </head>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+    <title>Dashboard {{ category }}</title>
+  </head>
+  <body class="cruscotto">
     <header>
-        <div class="logo">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            <h2>Dashboard {{category}}</h2>
-        </div>
-        <p>Sagra Natività della Beata Vergine Maria</p>
+      <div class="logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" />
+        <h2>Dashboard {{ category }}</h2>
+      </div>
+      <p>Sagra Natività della Beata Vergine Maria</p>
     </header>
 
-    <body class="cruscotto">
-        <div class="griglia-ordini">
+    <div class="griglia-ordini">
+      {% for ordine in ordini_non_completati %}
+        <div class="scheda-ordine" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
+          <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
 
-            {% for ordine in ordini_non_completati %}
-                <div class="scheda-ordine" data-status="{{ ordine['stato'] }}" data-id="{{ordine['id']}}">
-                    <h2 class="titolo-ordine">{{ordine['nome_cliente']}}</h2>
-
-                    <div class="info-ordine">
-                    <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
-                    <div>{{ordine['data_ordine'][11:16]}}</div> <!-- Mostra solo l'ora -->
-                    <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
-                    </div>
-
-                    <div class="divisore-ordine"></div>
-
-                    <div class="lista-articoli-ordine">
-                        {% for prodotto in ordine['prodotti'] %}
-                        <div class="riga-articolo-ordine">
-                            <span>{{ prodotto['nome'] }}</span>
-                            <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-
-                    <div class="stato-ordine">
-                        <button class="tasto-azione-ordine" data-status="{{ ordine['stato']}}" data-id="{{ ordine['id'] }}" data-categoria="{{ category }}" onclick="cambiaStato(this)">
-                            {{ordine['stato']}}
-                        </button>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-
-        <hr class="divisore-cruscotto" />
-
-        <h2 class="titolo-completati">Ordini Completati</h2>
-        <div class="griglia-ordini">
-            {% for ordine in ordini_completati %}  
-            <div class="scheda-ordine completato">
-                <h2 class="titolo-ordine">{{ordine['nome_cliente']}}</h2>
-                <div class="info-ordine">
-                    <div>Tavolo: {{ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO'}}</div>
-                    <div>{{ordine['data_ordine'][11:16]}}</div> <!-- Mostra solo l'ora -->
-                    <div>Persone: {{ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO'}}</div>
-                    </div>
-                <div class="divisore-ordine-completato"></div>
-                <div class="lista-articoli-ordine">
-                    {% for prodotto in ordine['prodotti'] %}
-                    <div class="riga-articolo-ordine">
-                        <span>{{ prodotto['nome'] }}</span>
-                        <span class="badge-quantita">x{{ prodotto['quantita'] }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
+          <div class="info-ordine">
+            <div>
+              Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
             </div>
-            {% endfor %}
-        </div>
+            <div>{{ ordine['data_ordine'][11:16] }}</div>
+            <div>
+              Persone:
+              {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}
+            </div>
+          </div>
 
-        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-        <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    </body>
+          <div class="divisore-ordine"></div>
+
+          <div class="lista-articoli-ordine">
+            {% for prodotto in ordine['prodotti'] %}
+              <div class="riga-articolo-ordine">
+                <span>{{ prodotto['nome'] }}</span>
+                <span class="etichetta-quantita">x{{ prodotto['quantita'] }}</span>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="stato-ordine">
+            <button
+              class="tasto-azione-ordine"
+              data-status="{{ ordine['stato'] }}"
+              data-id="{{ ordine['id'] }}"
+              data-categoria="{{ category }}"
+              onclick="cambiaStato(this)"
+            >
+              {{ ordine['stato'] }}
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <hr class="divisore-cruscotto" />
+
+    <h2 class="titolo-completati">Ordini Completati</h2>
+    <div class="griglia-ordini">
+      {% for ordine in ordini_completati %}
+        <div class="scheda-ordine completato">
+          <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
+          <div class="info-ordine">
+            <div>
+              Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
+            </div>
+            <div>{{ ordine['data_ordine'][11:16] }}</div>
+            <div>
+              Persone:
+              {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}
+            </div>
+          </div>
+          <div class="divisore-ordine-completato"></div>
+          <div class="lista-articoli-ordine">
+            {% for prodotto in ordine['prodotti'] %}
+              <div class="riga-articolo-ordine">
+                <span>{{ prodotto['nome'] }}</span>
+                <span class="etichetta-quantita">x{{ prodotto['quantita'] }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  </body>
 </html>

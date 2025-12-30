@@ -1,239 +1,241 @@
 <!DOCTYPE html>
 <html lang="it">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-        <title>Amministrazione</title>
-    </head>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Amministrazione</title>
+  </head>
+  <body class="amministrazione">
     <header>
-        <div class="logo">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            <h2>Amministrazione</h2>
-        </div>
-        <p>Sagra Natività della Beata Vergine Maria</p>
+      <div class="logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" />
+        <h2>Amministrazione</h2>
+      </div>
+      <p>Sagra Natività della Beata Vergine Maria</p>
     </header>
 
-    <body class="amministrazione">
-        <section class="sezione-tabella">
-        <div class="contenitore-tabella">
-            <div class="intestazione-tabella">
-                <div class="pallino-stato"></div>
-                <h3>Riepilogo</h3>
-            </div>
-            <div class="contenitore-statistiche">
-                <div class="scheda-statistica">
-                    <div class="etichetta-statistica">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
-                            <circle cx="6" cy="6" r="6"/>
-                        </svg>
-                        <span class="testo-etichetta">Ordini Totali</span>
-                    </div>
-                    <div class="valore-statistica">0</div>
-                </div>
-
-                <div class="scheda-statistica">
-                    <div class="etichetta-statistica">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
-                            <circle cx="6" cy="6" r="6"/>
-                        </svg>
-                        <span class="testo-etichetta">Ordini Completati</span>
-                    </div>
-                    <div class="valore-statistica">0</div>
-                </div>
-
-                <div class="scheda-statistica">
-                    <div class="etichetta-statistica">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
-                            <circle cx="6" cy="6" r="6"/>
-                        </svg>
-                        <span class="testo-etichetta">Guadagno Totale</span>
-                    </div>
-                    <div class="valore-statistica">0</div>
-                </div>
-
-                <div class="scheda-statistica">
-                    <div class="etichetta-statistica">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
-                            <circle cx="6" cy="6" r="6"/>
-                        </svg>
-                        <span class="testo-etichetta">Guadagno Carta</span>
-                    </div>
-                    <div class="valore-statistica">0</div>
-                </div>
-
-                <div class="scheda-statistica">
-                    <div class="etichetta-statistica">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
-                            <circle cx="6" cy="6" r="6"/>
-                        </svg>
-                        <span class="testo-etichetta">Guadagno Contanti</span>
-                    </div>
-                    <div class="valore-statistica">0</div>
-                </div>
-            </div>
+    <section class="sezione-tabella">
+      <div class="contenitore-tabella">
+        <div class="intestazione-tabella">
+          <div class="pallino-stato"></div>
+          <h3>Riepilogo</h3>
         </div>
+        <div class="contenitore-statistiche">
+          <div class="scheda-statistica">
+            <div class="etichetta-statistica">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6" />
+              </svg>
+              <span class="testo-etichetta">Ordini Totali</span>
+            </div>
+            <div class="valore-statistica">0</div>
+          </div>
+
+          <div class="scheda-statistica">
+            <div class="etichetta-statistica">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6" />
+              </svg>
+              <span class="testo-etichetta">Ordini Completati</span>
+            </div>
+            <div class="valore-statistica">0</div>
+          </div>
+
+          <div class="scheda-statistica">
+            <div class="etichetta-statistica">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6" />
+              </svg>
+              <span class="testo-etichetta">Guadagno Totale</span>
+            </div>
+            <div class="valore-statistica">0</div>
+          </div>
+
+          <div class="scheda-statistica">
+            <div class="etichetta-statistica">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6" />
+              </svg>
+              <span class="testo-etichetta">Guadagno Carta</span>
+            </div>
+            <div class="valore-statistica">0</div>
+          </div>
+
+          <div class="scheda-statistica">
+            <div class="etichetta-statistica">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12">
+                <circle cx="6" cy="6" r="6" />
+              </svg>
+              <span class="testo-etichetta">Guadagno Contanti</span>
+            </div>
+            <div class="valore-statistica">0</div>
+          </div>
+        </div>
+      </div>
     </section>
 
-        <section class="sezione-tabella">
-            <div class="contenitore-tabella">
-                <div class="intestazione-tabella">
-                    <div class="pallino-stato"></div>
-                    <h3>Grafici</h3>
-                </div>
-                <div class="contenitore-grafici">
+    <section class="sezione-tabella">
+      <div class="contenitore-tabella">
+        <div class="intestazione-tabella">
+          <div class="pallino-stato"></div>
+          <h3>Grafici</h3>
+        </div>
+        <div class="contenitore-grafici">
+          <div class="scheda-grafico">
+            <h3>Ordini per categoria</h3>
+            <canvas id="grafico1"></canvas>
+          </div>
 
-                    <div class="scheda-grafico">
-                        <h3>Ordini per categoria</h3>
-                        <canvas id="grafico1"></canvas>
-                    </div>
+          <div class="scheda-grafico">
+            <h3>Andamento ordini per ora</h3>
+            <canvas id="grafico2"></canvas>
+          </div>
 
-                    <div class="scheda-grafico">
-                        <h3>Andamento ordini per ora</h3>
-                        <canvas id="grafico2"></canvas>
-                    </div>
+          <div class="scheda-grafico">
+            <h3>Stato ordini</h3>
+            <canvas id="grafico3"></canvas>
+          </div>
 
-                    <div class="scheda-grafico">
-                        <h3>Stato ordini</h3>
-                        <canvas id="grafico3"></canvas>
-                    </div>
+          <div class="scheda-grafico">
+            <h3>Prodotti più venduti</h3>
+            <canvas id="grafico4"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
 
-                    <div class="scheda-grafico">
-                        <h3>Prodotti più venduti</h3>
-                        <canvas id="grafico4"></canvas>
-                    </div>
+    <section class="sezione-tabella">
+      <div class="contenitore-tabella">
+        <div class="intestazione-tabella">
+          <div class="pallino-stato"></div>
+          <h3>Dettaglio ordini</h3>
+        </div>
+        <div class="contenitore-tabella-scorrimento">
+          <table class="tabella-dati tabella-dati--ordini">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Tavolo</th>
+                <th>Persone</th>
+                <th>Data</th>
+                <th>Metodo Pagamento</th>
+                <th>Totale</th>
+                <th>Azioni</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% include 'partials/_amministrazione_ordini_rows.html' %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-                </div>
-            </div>
-        </section>
-
-        <section class="sezione-tabella">
-            <div class="contenitore-tabella">
-                <div class="intestazione-tabella">
-                    <div class="pallino-stato"></div>
-                    <h3>Dettaglio ordini</h3>
-                </div>
-                <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini tabella-ordini--ordini">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Cliente</th>
-                                <th>Tavolo</th>
-                                <th>Persone</th>
-                                <th>Data</th>
-                                <th>Metodo Pagamento</th>
-                                <th>Totale</th>
-                                <th>Azioni</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% include 'partials/_amministrazione_ordini_rows.html' %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section class="sezione-tabella">
-            <div class="contenitore-tabella">
-                <div class="intestazione-tabella">
-                    <div class="pallino-stato"></div>
-                    <h3>Dettaglio prodotti</h3>
-                    <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiunta()">+</button>
-                </div>
-
-                <nav class="contenitore-menu">
-                    <ul id="categorie-tabs">
-                        {% for categoria in categorie %}
-                            <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
-                        {% endfor %}
-                    </ul>
-                </nav>
-                
-                <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini tabella-ordini--prodotti">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nome</th>
-                                <th>Categoria Dashboard</th>
-                                <th>Prezzo</th>
-                                <th>Disponibilità</th>
-                                <th>Quantità</th>
-                                <th>Venduti</th>
-                                <th>Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% include 'partials/_amministrazione_prodotti_rows.html' %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <section class="sezione-tabella">
-            <div class="contenitore-tabella">
-                <div class="intestazione-tabella">
-                    <div class="pallino-stato"></div>
-                    <h3>Dettaglio utenti</h3>
-                    <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiuntaUtente()">+</button>
-                </div>
-                
-                <div class="contenitore-tabella-ordini">
-                    <table class="tabella-ordini tabella-ordini--utenti">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Username</th>
-                                <th>Ruolo</th>
-                                <th>Stato</th>
-                                <th>Amministrazione</th>
-                                <th>Cassa</th>
-                                <th>Dashboard</th>
-                                <th>Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% include 'partials/_amministrazione_utenti_rows.html' %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <div class="contenitore-azioni-admin">
-            <a class="tasto-index" href="{{ url_for('esporta_statistiche') }}">Esporta statistiche</a>
+    <section class="sezione-tabella">
+      <div class="contenitore-tabella">
+        <div class="intestazione-tabella">
+          <div class="pallino-stato"></div>
+          <h3>Dettaglio prodotti</h3>
+          <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiunta()">+</button>
         </div>
 
-        <script src="{{ url_for('static', filename='js/amministrazione.js') }}"></script>
+        <nav class="contenitore-menu">
+          <ul id="categorie-tabs">
+            {% for categoria in categorie %}
+              <li class="linguetta" data-categoria="{{ categoria }}">{{ categoria }}</li>
+            {% endfor %}
+          </ul>
+        </nav>
 
-    <!-- MODALE RIFORNIMENTO -->
-    <div class="modale-overlay" id="modaleRifornimento">
-        <div class="modale-finestra">
-            <h3 class="modale-titolo">Rifornisci Prodotto</h3>
-            <p class="modale-testo">Quante unità vuoi aggiungere a <br><strong id="nomeProdottoTarget">...</strong>?</p>
-            
-            <form id="formRifornimento">
-                <input type="hidden" id="idProdottoTarget" name="id_prodotto">
-                <input type="number" id="quantitaInput" class="modale-input" placeholder="0" min="1" required>
-                
-                <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" id="btnAnnulla">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Conferma</button>
-                </div>
-            </form>
+        <div class="contenitore-tabella-scorrimento">
+          <table class="tabella-dati tabella-dati--prodotti">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Categoria Dashboard</th>
+                <th>Prezzo</th>
+                <th>Disponibilità</th>
+                <th>Quantità</th>
+                <th>Venduti</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% include 'partials/_amministrazione_prodotti_rows.html' %}
+            </tbody>
+          </table>
         </div>
+      </div>
+    </section>
+
+    <section class="sezione-tabella">
+      <div class="contenitore-tabella">
+        <div class="intestazione-tabella">
+          <div class="pallino-stato"></div>
+          <h3>Dettaglio utenti</h3>
+          <button class="bottone-rifornimento tasto-aggiungi-header" onclick="apriModaleAggiuntaUtente()">+</button>
+        </div>
+
+        <div class="contenitore-tabella-scorrimento">
+          <table class="tabella-dati tabella-dati--utenti">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Ruolo</th>
+                <th>Stato</th>
+                <th>Amministrazione</th>
+                <th>Cassa</th>
+                <th>Dashboard</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% include 'partials/_amministrazione_utenti_rows.html' %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div class="contenitore-azioni-admin">
+      <a class="tasto-index" href="{{ url_for('esporta_statistiche') }}">Esporta statistiche</a>
     </div>
-    <!-- MODALE MODIFICA PRODOTTO -->
+
+    <script src="{{ url_for('static', filename='js/amministrazione.js') }}"></script>
+
+    <div class="modale-overlay" id="modaleRifornimento">
+      <div class="modale-finestra">
+        <h3 class="modale-titolo">Rifornisci Prodotto</h3>
+        <p class="modale-testo">
+          Quante unità vuoi aggiungere a <br /><strong id="nomeProdottoTarget">...</strong>?
+        </p>
+
+        <form id="formRifornimento">
+          <input type="hidden" id="idProdottoTarget" name="id_prodotto" />
+          <input type="number" id="quantitaInput" class="modale-input" placeholder="0" min="1" required />
+
+          <div class="modale-azioni">
+            <button type="button" class="bottone-modale bottone-annulla" id="btnAnnulla">Annulla</button>
+            <button type="submit" class="bottone-modale bottone-conferma">Conferma</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="modale-overlay" id="modaleModifica">
         <div class="modale-finestra">
             <h3 class="modale-titolo">Modifica Prodotto</h3>
@@ -241,16 +243,14 @@
             <form id="formModifica">
                 <input type="hidden" id="idProdottoModifica" name="id_prodotto">
                 
-                <!-- Nome -->
                 <div class="campo-form">
                     <label class="etichetta">Nome Prodotto</label>
-                    <input type="text" id="nomeProdottoModifica" class="input-form" required>
+                    <input type="text" id="nomeProdottoModifica" class="campo-modale" required>
                 </div>
 
-                <!-- Categoria Dashboard -->
                 <div class="campo-form">
                     <label class="etichetta">Categoria Dashboard</label>
-                    <select id="categoriaDashboardModifica" class="input-form">
+                    <select id="categoriaDashboardModifica" class="campo-modale">
                         <option value="Bar">Bar</option>
                         <option value="Cucina">Cucina</option>
                         <option value="Griglia">Griglia</option>
@@ -258,33 +258,30 @@
                     </select>
                 </div>
 
-                <!-- Quantità -->
                 <div class="campo-form">
                     <label class="etichetta">Quantità</label>
-                    <input type="number" id="quantitaProdottoModifica" class="input-form" min="0" required>
+                    <input type="number" id="quantitaProdottoModifica" class="campo-modale" min="0" required>
                 </div>
 
-                <!-- Disponibilità Toggle -->
                 <div class="campo-form">
                     <label class="etichetta">Disponibilità</label>
-                    <div class="toggle-container">
-                        <span class="stato-label" id="labelStatoModifica">Disponibile</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato" id="labelStatoModifica">Disponibile</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="toggleDisponibilitaModifica">
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
                 <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaModifica">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
+                    <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaModifica">Annulla</button>
+                    <button type="submit" class="bottone-modale bottone-conferma">Salva Modifiche</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- MODALE ELIMINAZIONE PRODOTTO -->
     <div class="modale-overlay" id="modaleElimina">
         <div class="modale-finestra">
             <div class="icona-attenzione">
@@ -302,12 +299,11 @@
             <input type="hidden" id="idProdottoElimina">
             
             <div class="modale-azioni">
-                <button type="button" class="btn-modale btn-annulla" id="btnAnnullaElimina">Annulla</button>
-                <button type="button" class="btn-modale btn-elimina" id="btnConfermaElimina">Sì, elimina</button>
+                <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaElimina">Annulla</button>
+                <button type="button" class="bottone-modale bottone-elimina" id="btnConfermaElimina">Sì, elimina</button>
             </div>
         </div>
     </div>
-    <!-- MODALE ELIMINAZIONE ORDINE -->
     <div class="modale-overlay" id="modaleEliminaOrdine">
         <div class="modale-finestra">
             <div class="icona-attenzione">
@@ -325,13 +321,12 @@
             <input type="hidden" id="idOrdineHidden">
             
             <div class="modale-azioni">
-                <button type="button" class="btn-modale btn-annulla" id="btnAnnullaEliminaOrdine">Annulla</button>
-                <button type="button" class="btn-modale btn-elimina" id="btnConfermaEliminaOrdine">Sì, elimina</button>
+                <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaEliminaOrdine">Annulla</button>
+                <button type="button" class="bottone-modale bottone-elimina" id="btnConfermaEliminaOrdine">Sì, elimina</button>
             </div>
         </div>
     </div>
 
-    <!-- MODALE MODIFICA ORDINE -->
     <div class="modale-overlay" id="modaleModificaOrdine">
         <div class="modale-finestra">
             <h3 class="modale-titolo">Modifica Ordine</h3>
@@ -339,57 +334,50 @@
             <form id="formModificaOrdine">
                 <input type="hidden" id="idOrdineModifica" name="id_ordine">
                 
-                <!-- Cliente -->
                 <div class="campo-form">
                     <label class="etichetta">Cliente</label>
-                    <input type="text" id="clienteModifica" class="input-form" required>
+                    <input type="text" id="clienteModifica" class="campo-modale" required>
                 </div>
 
-                <!-- Tavolo -->
                 <div class="campo-form">
                     <label class="etichetta">Tavolo</label>
-                    <input type="number" id="tavoloModifica" class="input-form" min="0">
+                    <input type="number" id="tavoloModifica" class="campo-modale" min="0">
                 </div>
 
-                <!-- Persone -->
                 <div class="campo-form">
                     <label class="etichetta">Persone</label>
-                    <input type="number" id="personeModifica" class="input-form" min="1">
+                    <input type="number" id="personeModifica" class="campo-modale" min="1">
                 </div>
 
-                <!-- Metodo Pagamento -->
                 <div class="campo-form">
                     <label class="etichetta">Metodo Pagamento</label>
-                    <select id="pagamentoModifica" class="input-form">
+                    <select id="pagamentoModifica" class="campo-modale">
                         <option value="Contanti">Contanti</option>
                         <option value="Carta">Carta</option>
                     </select>
                 </div>
 
                 <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" onclick="chiudiModaleModificaOrdine()">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
+                    <button type="button" class="bottone-modale bottone-annulla" onclick="chiudiModaleModificaOrdine()">Annulla</button>
+                    <button type="submit" class="bottone-modale bottone-conferma">Salva Modifiche</button>
                 </div>
             </form>
         </div>
     </div>
-    <!-- MODALE AGGIUNTA PRODOTTO -->
     <div class="modale-overlay" id="modaleAggiunta">
         <div class="modale-finestra">
             <h3 class="modale-titolo">Aggiungi Nuovo Prodotto</h3>
             
             <form id="formAggiunta">
                 
-                <!-- Nome -->
                 <div class="campo-form">
                     <label class="etichetta">Nome Prodotto</label>
-                    <input type="text" id="nomeProdottoAggiunta" class="input-form" required placeholder="Es. Pasta al Pomodoro">
+                    <input type="text" id="nomeProdottoAggiunta" class="campo-modale" required placeholder="Es. Pasta al Pomodoro">
                 </div>
 
-                <!-- Categoria Dashboard -->
                 <div class="campo-form">
                     <label class="etichetta">Categoria Dashboard</label>
-                    <select id="categoriaDashboardAggiunta" class="input-form">
+                    <select id="categoriaDashboardAggiunta" class="campo-modale">
                         <option value="Bar">Bar</option>
                         <option value="Cucina">Cucina</option>
                         <option value="Griglia">Griglia</option>
@@ -397,10 +385,9 @@
                     </select>
                 </div>
 
-                <!-- Categoria Menu -->
                 <div class="campo-form">
                     <label class="etichetta">Categoria Menu</label>
-                    <select id="categoriaMenuAggiunta" class="input-form">
+                    <select id="categoriaMenuAggiunta" class="campo-modale">
                         <option value="Aperitivi">Aperitivi</option>
                         <option value="Paella">Paella</option>
                         <option value="Primi">Primi</option>
@@ -412,39 +399,36 @@
                     </select>
                 </div>
 
-                <!-- Prezzo e Quantità -->
                 <div style="display: flex; gap: 15px;">
                     <div class="campo-form" style="flex: 1;">
                         <label class="etichetta">Prezzo (€)</label>
-                        <input type="number" id="prezzoProdottoAggiunta" class="input-form" min="0" step="0.01" required placeholder="0.00">
+                        <input type="number" id="prezzoProdottoAggiunta" class="campo-modale" min="0" step="0.01" required placeholder="0.00">
                     </div>
                     <div class="campo-form" style="flex: 1;">
                         <label class="etichetta">Quantità</label>
-                        <input type="number" id="quantitaProdottoAggiunta" class="input-form" min="0" required placeholder="0">
+                        <input type="number" id="quantitaProdottoAggiunta" class="campo-modale" min="0" required placeholder="0">
                     </div>
                 </div>
 
-                <!-- Disponibilità Toggle -->
                 <div class="campo-form">
                     <label class="etichetta">Disponibilità</label>
-                    <div class="toggle-container">
-                        <span class="stato-label" id="labelStatoAggiunta">Disponibile</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato" id="labelStatoAggiunta">Disponibile</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="toggleDisponibilitaAggiunta" checked>
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
                 <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaAggiunta">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Aggiungi Prodotto</button>
+                    <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaAggiunta">Annulla</button>
+                    <button type="submit" class="bottone-modale bottone-conferma">Aggiungi Prodotto</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- MODALE MODIFICA UTENTE -->
     <div class="modale-overlay" id="modaleModificaUtente">
         <div class="modale-finestra">
             <h3 class="modale-titolo">Modifica Utente</h3>
@@ -452,146 +436,134 @@
             <form id="formModificaUtente">
                 <input type="hidden" id="idUtenteModifica" name="id_utente">
                 
-                <!-- Username -->
                 <div class="campo-form">
                     <label class="etichetta">Username</label>
-                    <input type="text" id="usernameModifica" class="input-form" required>
+                    <input type="text" id="usernameModifica" class="campo-modale" required>
                 </div>
 
-                <!-- Password -->
                 <div class="campo-form">
                     <label class="etichetta">Nuova Password <span style="font-weight:400; font-size: 12px; color:#888;">(opzionale)</span></label>
-                    <input type="password" id="passwordModifica" class="input-form" placeholder="••••••••">
+                    <input type="password" id="passwordModifica" class="campo-modale" placeholder="••••••••">
                 </div>
 
-                <!-- Ruolo (Toggle) -->
                 <div class="campo-form">
                     <label class="etichetta">Ruolo Amministratore</label>
-                    <div class="toggle-container">
-                        <span class="stato-label">Utente Standard</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato">Utente Standard</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="isAdminModifica" onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Amministratore' : 'Utente Standard'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Stato (Toggle) -->
                 <div class="campo-form">
                     <label class="etichetta">Stato Account</label>
-                    <div class="toggle-container">
-                        <span class="stato-label" style="color: #FF006E;">Attivo</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato" style="color: #FF006E;">Attivo</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="isAttivoModifica" checked onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Attivo' : 'Sospeso'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Permessi (Checkbox Grid) -->
                 <div class="campo-form">
                     <label class="etichetta">Permessi Accesso</label>
-                    <div class="permessi-grid">
-                        <label class="checkbox-container">
+                    <div class="griglia-permessi">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="AMMINISTRAZIONE">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Amministrazione
                         </label>
-                        <label class="checkbox-container">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="CASSA">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Cassa
                         </label>
-                        <label class="checkbox-container">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="DASHBOARD">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Dashboard
                         </label>
                     </div>
                 </div>
 
                 <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaModificaUtente">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Salva Modifiche</button>
+                    <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaModificaUtente">Annulla</button>
+                    <button type="submit" class="bottone-modale bottone-conferma">Salva Modifiche</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- MODALE AGGIUNTA UTENTE -->
     <div class="modale-overlay" id="modaleAggiuntaUtente">
         <div class="modale-finestra">
             <h3 class="modale-titolo">Aggiungi Nuovo Utente</h3>
             
             <form id="formAggiuntaUtente">
                 
-                <!-- Username -->
                 <div class="campo-form">
                     <label class="etichetta">Username</label>
-                    <input type="text" id="usernameAggiunta" class="input-form" required placeholder="Es. MarioRossi">
+                    <input type="text" id="usernameAggiunta" class="campo-modale" required placeholder="Es. MarioRossi">
                 </div>
 
-                <!-- Password -->
                 <div class="campo-form">
                     <label class="etichetta">Password</label>
-                    <input type="password" id="passwordAggiunta" class="input-form" required placeholder="••••••••">
+                    <input type="password" id="passwordAggiunta" class="campo-modale" required placeholder="••••••••">
                 </div>
 
-                <!-- Ruolo (Toggle) -->
                 <div class="campo-form">
                     <label class="etichetta">Ruolo Amministratore</label>
-                    <div class="toggle-container">
-                        <span class="stato-label">Utente Standard</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato">Utente Standard</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="isAdminAggiunta" onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Amministratore' : 'Utente Standard'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Stato (Toggle) -->
                 <div class="campo-form">
                     <label class="etichetta">Stato Account</label>
-                    <div class="toggle-container">
-                        <span class="stato-label" style="color: #FF006E;">Attivo</span>
-                        <label class="toggle-switch">
+                    <div class="contenitore-interruttore">
+                        <span class="etichetta-stato" style="color: #FF006E;">Attivo</span>
+                        <label class="interruttore-scorrevole">
                             <input type="checkbox" id="isAttivoAggiunta" checked onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Attivo' : 'Sospeso'; this.parentElement.previousElementSibling.style.color = this.checked ? '#FF006E' : '#666';">
-                            <span class="slider"></span>
+                            <span class="cursore-scorrevole"></span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Permessi (Checkbox Grid) -->
                 <div class="campo-form">
                     <label class="etichetta">Permessi Accesso</label>
-                    <div class="permessi-grid">
-                        <label class="checkbox-container">
+                    <div class="griglia-permessi">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="AMMINISTRAZIONE">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Amministrazione
                         </label>
-                        <label class="checkbox-container">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="CASSA">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Cassa
                         </label>
-                        <label class="checkbox-container">
+                        <label class="casella-selezione">
                             <input type="checkbox" name="permessi" value="DASHBOARD">
-                            <span class="checkmark"></span>
+                            <span class="indicatore-spunta"></span>
                             Dashboard
                         </label>
                     </div>
                 </div>
 
                 <div class="modale-azioni">
-                    <button type="button" class="btn-modale btn-annulla" id="btnAnnullaAggiuntaUtente">Annulla</button>
-                    <button type="submit" class="btn-modale btn-conferma">Aggiungi Utente</button>
+                    <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaAggiuntaUtente">Annulla</button>
+                    <button type="submit" class="bottone-modale bottone-conferma">Aggiungi Utente</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- MODALE ELIMINAZIONE UTENTE -->
     <div class="modale-overlay" id="modaleEliminaUtente">
         <div class="modale-finestra">
             <div class="icona-attenzione">
@@ -609,8 +581,8 @@
             <input type="hidden" id="idUtenteElimina">
             
             <div class="modale-azioni">
-                <button type="button" class="btn-modale btn-annulla" id="btnAnnullaEliminaUtente">Annulla</button>
-                <button type="button" class="btn-modale btn-elimina" id="btnConfermaEliminaUtente">Sì, elimina</button>
+                <button type="button" class="bottone-modale bottone-annulla" id="btnAnnullaEliminaUtente">Annulla</button>
+                <button type="button" class="bottone-modale bottone-elimina" id="btnConfermaEliminaUtente">Sì, elimina</button>
             </div>
         </div>
     </div>

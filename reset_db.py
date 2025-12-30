@@ -1,39 +1,47 @@
-import sqlite3 as sq
 import os
+import sqlite3 as sq
 
 def reset_db():
+    # Percorso del database locale.
+    db_path = "db.sqlite3"
+
+    # Connessione inizialmente assente, viene valorizzata nel try.
+    conn = None
+
     print("Inizio reset del database...")
-    
-    db_path = 'db.sqlite3'
+
+    # Verifica esistenza del file DB.
     if not os.path.exists(db_path):
         print(f"Errore: Il file {db_path} non esiste.")
         return
 
     try:
+        # Apre connessione e cursore.
         conn = sq.connect(db_path)
         cursor = conn.cursor()
-        
-        # 1. Elimina tutti i dati esistenti
+
+        # Elimina i dati operativi e statistiche.
         print("Eliminazione dati ordini e statistiche...")
         tables_to_clear = [
-            'ordini', 
-            'ordini_prodotti', 
-            'statistiche_totali', 
-            'statistiche_categorie', 
-            'statistiche_ore',
-            'prodotti'
+            "ordini",
+            "ordini_prodotti",
+            "statistiche_totali",
+            "statistiche_categorie",
+            "statistiche_ore",
+            "prodotti",
         ]
-        
+
+        # Svuota le tabelle una per una.
         for table in tables_to_clear:
             cursor.execute(f"DELETE FROM {table}")
-            
-        # Reset delle sequenze di autoincrement
+
+        # Reset delle sequenze autoincrement.
         print("Reset sequenze autoincrement...")
         cursor.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name IN ('ordini', 'prodotti')")
-        
-        # 2. Inserimento prodotti di default
+
+        # Inserimento prodotti di default.
         print("Inserimento prodotti di default...")
-        
+
         products_sql = """
         -- APERITIVI 
         INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
@@ -148,13 +156,15 @@ def reset_db():
         """
         
         cursor.executescript(products_sql)
-        
+
+        # Commit delle modifiche.
         conn.commit()
         print("Reset completato con successo.")
-        
+
     except sq.Error as e:
         print(f"Errore SQLite: {e}")
     finally:
+        # Chiude connessione se aperta.
         if conn:
             conn.close()
 

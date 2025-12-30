@@ -1,3 +1,4 @@
+-- ==================== Ordini ====================
 CREATE TABLE IF NOT EXISTS ordini (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     asporto BOOLEAN NOT NULL,
@@ -9,6 +10,7 @@ CREATE TABLE IF NOT EXISTS ordini (
     completato BOOLEAN NOT NULL DEFAULT 0
 );
 
+-- ==================== Prodotti ====================
 CREATE TABLE IF NOT EXISTS prodotti (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
@@ -20,6 +22,7 @@ CREATE TABLE IF NOT EXISTS prodotti (
     venduti INTEGER NOT NULL
 );
 
+-- ==================== Ordini / Prodotti ====================
 CREATE TABLE IF NOT EXISTS ordini_prodotti (
     ordine_id INTEGER REFERENCES ordini(id) ON DELETE CASCADE,
     prodotto_id INTEGER REFERENCES prodotti(id),
@@ -28,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ordini_prodotti (
     PRIMARY KEY (ordine_id, prodotto_id)
 );
 
-/* tabelle per statistiche */
+-- ==================== Statistiche ====================
 CREATE TABLE IF NOT EXISTS statistiche_totali (
     id INT PRIMARY KEY,
     ordini_totali INT NOT NULL DEFAULT 0,
@@ -48,18 +51,17 @@ CREATE TABLE IF NOT EXISTS statistiche_ore (
     totale INT NOT NULL DEFAULT 0
 );
 
-
-/* tabelle per utenti */
+-- ==================== Utenti ====================
 CREATE TABLE IF NOT EXISTS utenti (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  is_admin INTEGER DEFAULT 0,
-  attivo INTEGER DEFAULT 1
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    is_admin INTEGER DEFAULT 0,
+    attivo INTEGER DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS permessi_pagine (
-  utente_id INTEGER NOT NULL,
-  pagina TEXT NOT NULL,
-  PRIMARY KEY (utente_id, pagina)
+    utente_id INTEGER NOT NULL,
+    pagina TEXT NOT NULL,
+    PRIMARY KEY (utente_id, pagina)
 );

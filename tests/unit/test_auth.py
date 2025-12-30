@@ -1,46 +1,57 @@
-import pytest
 import bcrypt
 from app import ottieni_db
 
-def test_login_successo(client):
-    """Testa che un utente valido possa effettuare il login."""
+# ==================== Accesso ====================
+
+
+def test_accesso_riuscito_con_credenziali_valide(cliente):
+    # Prepara password e hash per un utente di test.
     password = "password123"
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
-    # Crea utente di test nel DB temporaneo
-    with ottieni_db() as conn:
-        conn.execute(
+    hash_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    # Inserisce l'utente nel DB temporaneo.
+    with ottieni_db() as connessione:
+        connessione.execute(
             "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
-            ("testuser", password_hash, 0, 1)
+            ("utente_test", hash_password, 0, 1),
         )
-        conn.commit()
-        
-    # Tenta il login
-    response = client.post('/login/', data={
-        "username": "testuser",
-        "password": password
-    }, follow_redirects=True)
-    
-    assert response.status_code == 200
-    assert len(response.history) > 0 # Confirm redirect
-    assert response.request.path == "/"
+        connessione.commit()
 
-def test_login_fallito(client):
-    """Testa login con credenziali errate."""
-    response = client.post('/login/', data={
-        "username": "wronguser",
-        "password": "wrongpassword"
-    }, follow_redirects=True)
-    
-    assert response.status_code == 200
-    assert b"Username o password errata" in response.data
+    # Esegue il login e segue i redirect.
+    risposta = cliente.post(
+        "/login/",
+        data={"username": "utente_test", "password": password},
+        follow_redirects=True,
+    )
 
-def test_accesso_protetto_senza_login(client):
-    """Testa che le pagine protette richiedano il login."""
-    # Prova ad accedere alla cassa senza login
-    response = client.get('/cassa/', follow_redirects=True)
-    
-    # Dovrebbe reindirizzare al login
-    assert response.status_code == 200
-    assert b"Login" in response.data
-    assert "login" in response.request.path
+    # Verifica risposta OK.
+    assert risposta.status_code == 200
+    # Verifica che ci sia stato almeno un redirect.
+    assert len(risposta.history) > 0
+    # Verifica che la destinazione finale sia la home.
+    assert risposta.request.path == "/"
+
+
+def test_accesso_fallisce_con_credenziali_errate(cliente):
+    # Esegue login con credenziali errate.
+    risposta = cliente.post(
+        "/login/",
+        data={"username": "utente_sbagliato", "password": "password_sbagliata"},
+        follow_redirects=True,
+    )
+
+    # La pagina di login risponde comunque 200 (errore mostrato a video).
+    assert risposta.status_code == 200
+    # Verifica che venga mostrato il messaggio di errore.
+    assert b"Username o password errata" in risposta.data
+
+
+def test_pagina_protetta_richiede_accesso(cliente):
+    # Prova ad accedere alla cassa senza sessione.
+    risposta = cliente.get("/cassa/", follow_redirects=True)
+    # Verifica che il contenuto sia quello del login (redirect).
+    assert risposta.status_code == 200
+    # Verifica presenza testo login.
+    assert b"Login" in risposta.data
+    # Verifica che la path finale sia login.
+    assert "login" in risposta.request.path
