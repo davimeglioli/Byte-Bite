@@ -8,11 +8,8 @@ def reset_db():
     # Connessione inizialmente assente, viene valorizzata nel try.
     conn = None
 
-    print("Inizio reset del database...")
-
     # Verifica esistenza del file DB.
     if not os.path.exists(db_path):
-        print(f"Errore: Il file {db_path} non esiste.")
         return
 
     try:
@@ -21,7 +18,6 @@ def reset_db():
         cursor = conn.cursor()
 
         # Elimina i dati operativi e statistiche.
-        print("Eliminazione dati ordini e statistiche...")
         tables_to_clear = [
             "ordini",
             "ordini_prodotti",
@@ -36,11 +32,9 @@ def reset_db():
             cursor.execute(f"DELETE FROM {table}")
 
         # Reset delle sequenze autoincrement.
-        print("Reset sequenze autoincrement...")
         cursor.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name IN ('ordini', 'prodotti')")
 
         # Inserimento prodotti di default.
-        print("Inserimento prodotti di default...")
 
         products_sql = """
         -- APERITIVI 
@@ -159,10 +153,9 @@ def reset_db():
 
         # Commit delle modifiche.
         conn.commit()
-        print("Reset completato con successo.")
 
-    except sq.Error as e:
-        print(f"Errore SQLite: {e}")
+    except sq.Error:
+        pass
     finally:
         # Chiude connessione se aperta.
         if conn:

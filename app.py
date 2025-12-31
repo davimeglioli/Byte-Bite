@@ -38,8 +38,8 @@ with app.app_context():
         # Migliora concorrenza su SQLite quando ci sono più richieste.
         with sq.connect("db.sqlite3", timeout=30) as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
-    except Exception as e:
-        print(f"Attenzione: Impossibile abilitare WAL mode: {e}")
+    except Exception:
+        pass
 
 @app.errorhandler(403)
 def errore_403(error):
@@ -175,9 +175,8 @@ def emissione_sicura(evento, dati, stanza=None):
         if stanza and stanza != "amministrazione" and evento == "aggiorna_dashboard":
             # Replica l'aggiornamento anche all'area amministrazione.
             socketio.emit(evento, dati, room="amministrazione")
-    except Exception as errore:
-        # Non interrompe la request in caso di problemi WebSocket.
-        app.logger.warning(f"[SocketIO] Errore durante emissione: {errore}")
+    except Exception:
+        pass
 
 @socketio.on("join")
 def gestisci_join(dati):
@@ -187,7 +186,6 @@ def gestisci_join(dati):
     if categoria:
         # Iscrive la connessione alla stanza (es. Bar, Cucina, Griglia).
         join_room(categoria)
-        print(f"[WS] Dashboard entrata nella stanza: {categoria}")
 
 # ==================== Logica di business ====================
 
@@ -519,7 +517,6 @@ def aggiungi_ordine():
 
     except Exception as errore:
         # Log minimale e redirect verso la cassa con messaggio errore.
-        print(f"[ERRORE ORDINE] {errore}")
         return redirect(url_for("cassa") + f"?error={errore}", code=303)
 
 # ==================== Route: dashboard ====================
@@ -594,7 +591,6 @@ def cambia_stato():
         if chiave_timer in timer_attivi:
             timer_attivi[chiave_timer]["annulla"] = True
             del timer_attivi[chiave_timer]
-            print(f"[AUTO] Timer annullato per ordine {id_ordine} ({categoria})")
 
         nuovo_stato = "In Preparazione"
 
@@ -639,7 +635,6 @@ def cambia_stato():
         id_timer = str(uuid.uuid4())
         timer_attivi[chiave_timer] = {"annulla": False, "id": id_timer}
         socketio.start_background_task(cambia_stato_automatico, id_ordine, categoria, id_timer)
-        print(f"[AUTO] Timer avviato per ordine {id_ordine} ({categoria}) → {id_timer}")
 
     return jsonify({
         "nuovo_stato": nuovo_stato
@@ -1023,9 +1018,8 @@ def aggiungi_prodotto():
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Prodotto aggiunto con successo"})
-    except Exception as errore:
+    except Exception:
         # Errore generico per evitare leak di dettagli DB al client.
-        print(f"Errore aggiunta prodotto: {errore}")
         return jsonify({"errore": "Errore durante l'aggiunta"}), 500
 
 @app.route("/api/modifica_prodotto", methods=["POST"])
@@ -1059,8 +1053,7 @@ def modifica_prodotto():
         # Aggiorna statistiche dopo variazione stock.
         socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Prodotto modificato con successo"})
-    except Exception as errore:
-        print(f"Errore modifica prodotto: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 @app.route("/api/rifornisci_prodotto", methods=["POST"])
@@ -1109,8 +1102,7 @@ def elimina_prodotto():
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Prodotto eliminato con successo"})
-    except Exception as errore:
-        print(f"Errore eliminazione prodotto: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 # ==================== API: ordini ====================
@@ -1154,8 +1146,7 @@ def modifica_ordine():
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Ordine aggiornato con successo"})
-    except Exception as errore:
-        print(f"Errore modifica ordine: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
 
 @app.route("/api/elimina_ordine", methods=["POST"])
@@ -1217,8 +1208,7 @@ def elimina_ordine():
         # Aggiorna statistiche dopo eliminazione.
         socketio.start_background_task(ricalcola_statistiche)
         return jsonify({"messaggio": "Ordine eliminato con successo"})
-    except Exception as errore:
-        print(f"Errore eliminazione ordine: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 @app.route("/api/ordine/<int:ordine_id>/dettagli")
@@ -1362,8 +1352,7 @@ def aggiungi_utente():
             connessione.commit()
 
         return jsonify({"messaggio": "Utente creato con successo"})
-    except Exception as errore:
-        print(f"Errore aggiunta utente: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante la creazione"}), 500
 
 @app.route("/api/modifica_utente", methods=["POST"])
@@ -1418,8 +1407,7 @@ def modifica_utente():
         connessione.commit()
 
         return jsonify({"messaggio": "Utente modificato con successo"})
-    except Exception as errore:
-        print(f"Errore modifica utente: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 @app.route("/api/elimina_utente", methods=["POST"])
@@ -1454,8 +1442,7 @@ def elimina_utente():
         connessione.commit()
 
         return jsonify({"messaggio": "Utente eliminato con successo"})
-    except Exception as errore:
-        print(f"Errore eliminazione utente: {errore}")
+    except Exception:
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 # ==================== API: frammenti HTML amministrazione ====================
@@ -1541,7 +1528,5 @@ if __name__ == "__main__":
         ip_locale = "127.0.0.1"
     finally:
         socket_udp.close()
-    print(f"Avvio server — apri: http://{ip_locale}:8000/")
-    print(f"Modalità async: {socketio.async_mode}")
     modalita_debug = os.getenv("DEBUG", "False").lower() == "true"
     socketio.run(app, host="0.0.0.0", port=8000, debug=modalita_debug)
