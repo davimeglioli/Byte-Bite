@@ -1,11 +1,18 @@
 import contextlib
 import os
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 import bcrypt
 import pytest
+
+radice_progetto = Path(__file__).resolve().parents[1]
+if str(radice_progetto) not in sys.path:
+    sys.path.insert(0, str(radice_progetto))
+
 import app as modulo_app
 from app import app, ottieni_db, socketio
 
@@ -231,3 +238,8 @@ def autenticazione(cliente):
 def auth_alias(autenticazione):
     # Alias per compatibilità con test che usano auth.
     return autenticazione
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        item.add_marker(pytest.mark.nondestructive)
