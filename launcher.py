@@ -16,6 +16,11 @@ from PIL import Image, ImageTk
 
 # ==================== Configurazione ====================
 
+BASE_PATH = getattr(sys, "_MEIPASS", os.path.dirname(os.path.realpath(__file__)))
+
+def percorso_risorsa(*parti):
+    return os.path.join(BASE_PATH, *parti)
+
 # Colori definiti in base al file style.css del progetto.
 ACCENT_COLOR = "#FF006E"
 HEADER_COLOR = "#000000"
@@ -37,18 +42,15 @@ class ByteBiteLauncher(ctk.CTk):
         self.geometry("1000x700")
         self.resizable(True, True)
         
-        # Gestione dell'icona finestra per Windows e macOS/Linux.
         try:
-            base_path = os.path.dirname(os.path.realpath(__file__))
-            if os.name == 'nt':
-                 # Su Windows si usa il file .ico.
-                 icon_path = os.path.join(base_path, "static", "favicon.ico")
-                 self.iconbitmap(icon_path)
+            if os.name == "nt":
+                icon_path = percorso_risorsa("static", "logo_app.ico")
+                self.iconbitmap(icon_path)
             else:
-                 # Su macOS e Linux si usa iconphoto con PNG.
-                 icon_path = os.path.join(base_path, "static", "logo.png")
-                 img = Image.open(icon_path)
-                 self.iconphoto(True, ImageTk.PhotoImage(img))
+                icon_path = percorso_risorsa("static", "logo_app.png")
+                img = Image.open(icon_path)
+                self._app_icon = ImageTk.PhotoImage(img)
+                self.iconphoto(True, self._app_icon)
         except Exception as e:
             print(f"Errore impostazione icona: {e}")
         
@@ -95,7 +97,7 @@ class ByteBiteLauncher(ctk.CTk):
         
         # Caricamento e ridimensionamento del logo mantenendo l'aspect ratio.
         try:
-            image_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "static", "logo.png")
+            image_path = percorso_risorsa("static", "logo.png")
             pil_image = Image.open(image_path)
             
             # Calcola le nuove dimensioni basate sull'altezza di 40px.
