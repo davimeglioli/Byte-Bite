@@ -64,6 +64,7 @@ def test_crud_prodotti(cliente):
         "id": id_prodotto,
         "nome": "Piatto Modificato",
         "categoria_dashboard": "Cucina",
+        "prezzo": 15.0,
         "quantita": 5,
     }
     risposta = cliente.post("/api/modifica_prodotto", json=payload_modifica)
@@ -76,6 +77,7 @@ def test_crud_prodotti(cliente):
             (id_prodotto,),
         ).fetchone()
         assert prodotto["nome"] == "Piatto Modificato"
+        assert prodotto["prezzo"] == 15.0
         assert prodotto["quantita"] == 5
 
     # Rifornisce il prodotto via API.

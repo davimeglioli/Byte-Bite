@@ -8,6 +8,10 @@ import queue
 import time
 import signal
 import psutil
+import shutil
+import socket
+import qrcode
+from datetime import datetime
 from PIL import Image, ImageTk
 
 # ==================== Configurazione ====================
@@ -220,6 +224,40 @@ class ByteBiteLauncher(ctk.CTk):
         )
         self.btn_browser.pack(pady=10, padx=20, fill="x")
 
+        # Pulsante per Backup DB.
+        self.btn_backup = ctk.CTkButton(
+            self.controls_card,
+            text="Backup Database",
+            command=self.backup_db,
+            fg_color="white",
+            border_width=2,
+            border_color="#333333",
+            text_color="#333333",
+            hover_color="#F0F0F0",
+            font=self.font_body,
+            height=50,
+            corner_radius=25,
+            width=200
+        )
+        self.btn_backup.pack(pady=10, padx=20, fill="x")
+
+        # Pulsante per Mostra QR Code.
+        self.btn_qrcode = ctk.CTkButton(
+            self.controls_card,
+            text="Mostra QR Code",
+            command=self.show_qr_code,
+            fg_color="white",
+            border_width=2,
+            border_color="#333333",
+            text_color="#333333",
+            hover_color="#F0F0F0",
+            font=self.font_body,
+            height=50,
+            corner_radius=25,
+            width=200
+        )
+        self.btn_qrcode.pack(pady=10, padx=20, fill="x")
+
         # Card di destra: Console Log.
         self.console_card = ctk.CTkFrame(
             self.content_container, 
@@ -265,8 +303,9 @@ class ByteBiteLauncher(ctk.CTk):
         
         try:
             # Lancia app.py come sottoprocesso, catturando stdout/stderr.
+            # L'argomento -u forza l'output non bufferizzato per log in tempo reale.
             self.process = subprocess.Popen(
-                [python_exe, "app.py"],
+                [python_exe, "-u", "app.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -317,6 +356,79 @@ class ByteBiteLauncher(ctk.CTk):
     def open_browser(self):
         # Apre l'URL locale nel browser predefinito.
         webbrowser.open("http://localhost:8000")
+
+    def backup_db(self):
+        # Crea una copia di backup del database con timestamp.
+        db_file = "db.sqlite3"
+        if not os.path.exists(db_file):
+            self.log("!!! Database non trovato: db.sqlite3")
+            return
+
+        # Crea la cartella backups se non esiste.
+        backup_dir = "backups"
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+
+        # Genera il nome del file con data e ora corrente.
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"db_backup_{timestamp}.sqlite3"
+        backup_path = os.path.join(backup_dir, backup_filename)
+
+        try:
+            # Copia il file.
+            shutil.copy2(db_file, backup_path)
+            self.log(f">>> Backup creato con successo: {backup_path}")
+        except Exception as e:
+            self.log(f"!!! Errore durante il backup: {e}")
+
+    def show_qr_code(self):
+        # Genera e mostra un QR code con l'indirizzo IP locale.
+        try:
+            # Ottiene l'indirizzo IP locale della macchina.
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
+            s.close()
+        except Exception:
+            ip_address = "127.0.0.1"
+
+        url = f"http://{ip_address}:8000"
+        self.log(f">>> Generazione QR Code per: {url}")
+
+        # Genera il QR Code.
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+
+        # Crea immagine PilImage e convertila esplicitamente in PIL.Image.Image.
+        qr_pil = qr.make_image(fill_color="black", back_color="white").get_image()
+        
+        # Mostra il QR Code in una finestra popup (Toplevel).
+        qr_window = ctk.CTkToplevel(self)
+        qr_window.title("QR Code Accesso Mobile")
+        qr_window.geometry("400x450")
+        qr_window.resizable(False, False)
+        
+        # Assicura che la finestra sia in primo piano.
+        qr_window.attributes("-topmost", True)
+
+        # Titolo nel popup.
+        label_title = ctk.CTkLabel(qr_window, text="Scansiona per accedere", font=("Inter", 18, "bold"))
+        label_title.pack(pady=(20, 10))
+        
+        # Converti immagine per CTk usando l'oggetto PIL convertito.
+        tk_img = ctk.CTkImage(light_image=qr_pil, dark_image=qr_pil, size=(300, 300))
+        label_img = ctk.CTkLabel(qr_window, text="", image=tk_img)
+        label_img.pack(pady=10)
+
+        # Mostra l'URL testuale sotto.
+        label_url = ctk.CTkLabel(qr_window, text=url, font=("Consolas", 14))
+        label_url.pack(pady=(0, 20))
 
     def update_ui_state(self, running):
         # Aggiorna i pulsanti e l'indicatore di stato in base allo stato del server.

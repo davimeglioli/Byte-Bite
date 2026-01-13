@@ -328,6 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const idProdottoModifica = document.getElementById("idProdottoModifica");
     const nomeProdottoModifica = document.getElementById("nomeProdottoModifica");
     const categoriaDashboardModifica = document.getElementById("categoriaDashboardModifica");
+    const prezzoProdottoModifica = document.getElementById("prezzoProdottoModifica");
     const quantitaProdottoModifica = document.getElementById("quantitaProdottoModifica");
     const toggleDisponibilitaModifica = document.getElementById("toggleDisponibilitaModifica");
     const labelStatoModifica = document.getElementById("labelStatoModifica");
@@ -361,6 +362,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const id = bottone.getAttribute("data-id");
         const nome = bottone.getAttribute("data-nome");
         const categoriaDashboard = bottone.getAttribute("data-cat");
+        const prezzo = bottone.getAttribute("data-prezzo");
         const quantita = bottone.getAttribute("data-qta");
         const disponibile = bottone.getAttribute("data-disp") === "1";
 
@@ -368,6 +370,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         idProdottoModifica.value = id;
         nomeProdottoModifica.value = nome;
         categoriaDashboardModifica.value = categoriaDashboard;
+        prezzoProdottoModifica.value = prezzo;
         quantitaProdottoModifica.value = quantita;
         toggleDisponibilitaModifica.checked = disponibile;
         aggiornaLabelStato();
@@ -395,6 +398,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             id: idProdottoModifica.value,
             nome: nomeProdottoModifica.value,
             categoria_dashboard: categoriaDashboardModifica.value,
+            prezzo: parseFloat(prezzoProdottoModifica.value),
             quantita: parseInt(quantitaProdottoModifica.value),
             disponibile: toggleDisponibilitaModifica.checked,
         };

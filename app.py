@@ -1067,18 +1067,20 @@ def modifica_prodotto():
     try:
         # Converte quantità e calcola disponibile in modo automatico.
         quantita = int(dati["quantita"])
+        prezzo = float(dati["prezzo"])
         disponibile = 1 if quantita > 0 else 0
 
-        # Aggiorna nome, categoria e stock.
+        # Aggiorna nome, categoria, prezzo e stock.
         esegui_query(
             """
             UPDATE prodotti 
-            SET nome = ?, categoria_dashboard = ?, quantita = ?, disponibile = ?
+            SET nome = ?, categoria_dashboard = ?, prezzo = ?, quantita = ?, disponibile = ?
             WHERE id = ?
             """,
             (
                 dati["nome"],
                 dati["categoria_dashboard"],
+                prezzo,
                 quantita,
                 disponibile,
                 dati["id"],
@@ -1090,7 +1092,7 @@ def modifica_prodotto():
 
         # Traccia in console l'azione amministrativa per audit e debugging.
         app.logger.info(
-            "ADMIN prodotto_modificato attore_id=%s attore=%s id=%s nome=%s cat_dash=%s quantita=%s disponibile=%s",
+            "ADMIN prodotto_modificato attore_id=%s attore=%s id=%s nome=%s cat_dash=%s prezzo=%s quantita=%s disponibile=%s",
             # Identifica l'utente che sta operando da amministrazione.
             session.get("id_utente"),
             session.get("user_cache_username") or session.get("username"),
@@ -1098,6 +1100,7 @@ def modifica_prodotto():
             dati.get("id"),
             dati.get("nome"),
             dati.get("categoria_dashboard"),
+            prezzo,
             quantita,
             disponibile,
         )
