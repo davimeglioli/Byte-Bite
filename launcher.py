@@ -306,14 +306,17 @@ class ByteBiteLauncher(ctk.CTk):
         try:
             # Lancia app.py come sottoprocesso, catturando stdout/stderr.
             # L'argomento -u forza l'output non bufferizzato per log in tempo reale.
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = subprocess.CREATE_NO_WINDOW | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
             self.process = subprocess.Popen(
                 [python_exe, "-u", "app.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                # Evita la creazione di una finestra console su Windows.
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                creationflags=creationflags,
             )
             
             # Aggiorna lo stato dell'interfaccia.
@@ -329,31 +332,71 @@ class ByteBiteLauncher(ctk.CTk):
             self.server_running = False
 
     def stop_server(self):
-        # Ferma il server e tutti i processi figli.
-        if not self.server_running or not self.process:
+        if not self.process:
+            self.server_running = False
+            self.update_ui_state(running=False)
             return
 
         self.log(">>> Arresto del server in corso...")
-        
+
+        pid = self.process.pid
+
+        if os.name == "nt":
+            try:
+                self.process.send_signal(signal.CTRL_BREAK_EVENT)
+                time.sleep(0.2)
+            except Exception:
+                pass
+
         try:
-            # Usa psutil per terminare l'intero albero dei processi.
-            parent = psutil.Process(self.process.pid)
+            parent = psutil.Process(pid)
             children = parent.children(recursive=True)
+
             for child in children:
-                child.terminate()
-            parent.terminate()
-            
-            # Attende la terminazione dei processi.
+                try:
+                    child.terminate()
+                except Exception:
+                    pass
+
+            try:
+                parent.terminate()
+            except Exception:
+                pass
+
             gone, alive = psutil.wait_procs(children + [parent], timeout=3)
             for p in alive:
-                p.kill()
-                
-            self.process = None
-            self.server_running = False
-            self.update_ui_state(running=False)
-            self.log(">>> Server arrestato.")
-        except Exception as e:
-            self.log(f"!!! Errore durante l'arresto: {e}")
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+
+        except Exception:
+            try:
+                self.process.terminate()
+            except Exception:
+                pass
+
+            try:
+                self.process.kill()
+            except Exception:
+                pass
+
+            if os.name == "nt":
+                try:
+                    subprocess.run(
+                        ["taskkill", "/PID", str(pid), "/T", "/F"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+
+        self.process = None
+        self.server_running = False
+        self.update_ui_state(running=False)
+        self.log(">>> Server arrestato.")
 
     def open_browser(self):
         # Apre l'URL locale nel browser predefinito.
@@ -484,7 +527,7 @@ class ByteBiteLauncher(ctk.CTk):
 
     def on_closing(self):
         # Gestisce la chiusura pulita dell'applicazione.
-        if self.server_running:
+        if self.process:
             self.stop_server()
         self.destroy()
 

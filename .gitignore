@@ -25,3 +25,4 @@ htmlcov/
 
 # Temporary files
 query_prodotti
+.DS_Store
