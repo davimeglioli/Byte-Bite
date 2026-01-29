@@ -1005,6 +1005,12 @@ def esporta_statistiche():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def aggiungi_prodotto():
+    """Creare un nuovo prodotto a catalogo.
+
+    Input: JSON con campi nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile.
+    Output: JSON con esito; aggiorna statistiche.
+    Effetti: inserire riga in tabella prodotti; impostare disponibilità in base alla quantità.
+    """
     # Crea un nuovo prodotto a catalogo (con logica disponibilità basata sulla quantità).
     dati = request.get_json()
 
@@ -1061,6 +1067,12 @@ def aggiungi_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def modifica_prodotto():
+    """Modificare i dati di un prodotto esistente.
+
+    Input: JSON con id, nome, categoria_dashboard, prezzo, quantita.
+    Output: JSON con esito; aggiorna statistiche.
+    Effetti: aggiornare stock e disponibilità coerentemente.
+    """
     # Aggiorna i campi del prodotto e sincronizza la disponibilità.
     dati = request.get_json()
 
@@ -1113,6 +1125,11 @@ def modifica_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def rifornisci_prodotto():
+    """Rifornire lo stock di un prodotto.
+
+    Input: JSON con id e quantita (>0).
+    Output: JSON con esito; forza disponibilità se lo stock torna > 0.
+    """
     # Incrementa lo stock di un prodotto e lo rende disponibile se necessario.
     dati = request.get_json()
     id_prodotto = dati.get("id")
@@ -1157,6 +1174,11 @@ def rifornisci_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def elimina_prodotto():
+    """Eliminare un prodotto dal catalogo.
+
+    Input: JSON con id.
+    Output: JSON con esito; aggiorna statistiche.
+    """
     # Elimina un prodotto dal catalogo.
     dati = request.get_json()
 
@@ -1186,6 +1208,11 @@ def elimina_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def modifica_ordine():
+    """Aggiornare i metadati di un ordine.
+
+    Input: JSON con id_ordine, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento.
+    Output: JSON con esito; aggiorna statistiche.
+    """
     # Aggiorna i metadati dell'ordine (cliente, tavolo/persone, pagamento).
     dati = request.get_json()
     id_ordine = dati.get("id_ordine")
@@ -1243,6 +1270,12 @@ def modifica_ordine():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def elimina_ordine():
+    """Eliminare un ordine e ripristinare magazzino/venduti.
+
+    Input: JSON con id.
+    Output: JSON con esito; aggiorna statistiche.
+    Effetti: transazione di ripristino stock e rimozione righe collegate.
+    """
     # Elimina un ordine ripristinando il magazzino e i venduti.
     dati = request.get_json()
     id_ordine = dati.get("id")
@@ -1317,6 +1350,11 @@ def elimina_ordine():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def ordine_dettagli(ordine_id):
+    """Restituire HTML dettagli righe ordine e totale.
+
+    Input: parametro percorso ordine_id.
+    Output: frammento HTML per espansione riga in amministrazione.
+    """
     # Ritorna un frammento HTML con dettaglio righe ordine e totale.
     # Query unica che include subtotale per riga.
     dettagli = esegui_query(
@@ -1363,6 +1401,11 @@ def test_expansion():
 
 @app.route("/api/ordine/<int:id_ordine>")
 def api_ordine(id_ordine):
+    """Restituire intestazione e righe di un ordine in JSON.
+
+    Input: parametro percorso id_ordine.
+    Output: JSON con metadati e lista articoli.
+    """
     # Restituisce intestazione e righe dell'ordine in JSON.
     # Prima: intestazione ordine (metadati).
     intestazione = esegui_query(
@@ -1641,6 +1684,10 @@ def api_amministrazione_prodotti_html():
 
 @app.route("/genera_statistiche/")
 def genera_statistiche():
+    """Forzare ricalcolo statistiche e reindirizzare ad amministrazione.
+
+    Output: redirect alla pagina amministrazione.
+    """
     # Forza un ricalcolo statistiche e torna alla pagina amministrazione.
     # Utile quando si vogliono aggiornare i grafici manualmente.
     ricalcola_statistiche()
@@ -1650,6 +1697,11 @@ def genera_statistiche():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def debug_reset_dati():
+    """Azzerare ordini e ripristinare magazzino (utility di debug).
+
+    Output: redirect alla pagina amministrazione.
+    Attenzione: operazione irreversibile nel DB corrente.
+    """
     # Utility di debug: azzera ordini e ripristina magazzino.
     # Attenzione: cancella dati in modo irreversibile nel DB corrente.
     esegui_query("DELETE FROM ordini_prodotti", commit=True)

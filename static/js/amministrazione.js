@@ -6,7 +6,7 @@ let grafici = {
     top10: null,
 };
 
-let socketIo = null;
+let socket = null;
 let stanzeIscritte = new Set();
 let aggiornamentoPianificato = false;
 
@@ -103,12 +103,12 @@ function aggiornaGrafici(statistiche) {
 // ==================== Realtime ====================
 function iscrivitiStanze(_categorie) {
     // L'amministrazione riceve notifiche globali sulla stanza dedicata.
-    if (!socketIo) return;
+    if (!socket) return;
 
     const stanza = "amministrazione";
     if (stanzeIscritte.has(stanza)) return;
 
-    socketIo.emit("join", { categoria: stanza });
+    socket.emit("join", { categoria: stanza });
     stanzeIscritte.add(stanza);
 }
 
@@ -221,11 +221,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Realtime: ascolta gli eventi socket e pianifica un refresh debounced.
     if (typeof io !== "undefined") {
-        socketIo = io();
-        socketIo.on("connect", () => {
+        socket = io();
+        socket.on("connect", () => {
             iscrivitiStanze(statistiche.categorie);
         });
-        socketIo.on("aggiorna_dashboard", () => {
+        socket.on("aggiorna_dashboard", () => {
             pianificaAggiornamento();
         });
     }

@@ -181,7 +181,7 @@ class ByteBiteLauncher(ctk.CTk):
         # Pulsante per avviare il server Flask.
         self.btn_start = ctk.CTkButton(
             self.controls_card,
-            text="Start Server",
+            text="Avvia Server",
             command=self.start_server,
             fg_color=ACCENT_COLOR,
             hover_color="#D0005A",
@@ -195,7 +195,7 @@ class ByteBiteLauncher(ctk.CTk):
         # Pulsante per arrestare il server.
         self.btn_stop = ctk.CTkButton(
             self.controls_card,
-            text="Stop Server",
+            text="Arresta Server",
             command=self.stop_server,
             fg_color="gray",
             state="disabled",
@@ -275,7 +275,7 @@ class ByteBiteLauncher(ctk.CTk):
         # Titolo della sezione console.
         self.console_header = ctk.CTkLabel(
             self.console_card, 
-            text="Console Log", 
+            text="Registro Console", 
             font=self.font_header,
             text_color="black"
         )

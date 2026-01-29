@@ -2,7 +2,7 @@
 // Gestisce: socket realtime, cambio stato ordine e refresh parziale HTML.
 
 // Connessione socket: usa solo websocket per ridurre latenza e fallback.
-const socketIo = io({
+const socket = io({
     transports: ["websocket"],
     upgrade: false,
 });
@@ -15,10 +15,10 @@ const categoriaCorrente = document
     .trim();
 
 // Si iscrive alla stanza della categoria.
-socketIo.emit("join", { categoria: categoriaCorrente });
+socket.emit("join", { categoria: categoriaCorrente });
 
 // Aggiornamento realtime: quando arriva un evento, ricarica solo la categoria corrente.
-socketIo.on("aggiorna_dashboard", (dati) => {
+socket.on("aggiorna_dashboard", (dati) => {
     if (dati.categoria === categoriaCorrente) {
         aggiornaDashboard();
     }
