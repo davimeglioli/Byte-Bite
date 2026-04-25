@@ -35,7 +35,11 @@ function cambiaStato(bottone) {
     const indiceStato = stati.indexOf(statoAttuale);
 
     let statoSuccessivo = statoAttuale;
-    if (indiceStato !== -1 && indiceStato < stati.length - 1) {
+    // Allinea il comportamento ottimistico alla logica backend:
+    // da "Pronto" si torna a "In Preparazione", non a "Completato".
+    if (statoAttuale === "Pronto") {
+        statoSuccessivo = "In Preparazione";
+    } else if (indiceStato !== -1 && indiceStato < stati.length - 1) {
         statoSuccessivo = stati[indiceStato + 1];
     }
 
