@@ -11,6 +11,7 @@ from app import (
     socketio,
     timer_attivi,
 )
+from services import costruisci_dati_statistiche
 
 # ==================== Copertura ====================
 
@@ -20,7 +21,8 @@ def test_ricalcola_statistiche_calcola_totale_carta(cliente):
         # Pulisce tabelle rilevanti.
         connessione.execute("DELETE FROM ordini")
         connessione.execute("DELETE FROM ordini_prodotti")
-        connessione.execute("DELETE FROM statistiche_totali")
+        connessione.execute("DELETE FROM ordini")
+        connessione.execute("DELETE FROM ordini_prodotti")
 
         # Inserisce un prodotto e un ordine completato.
         connessione.execute(
@@ -45,11 +47,10 @@ def test_ricalcola_statistiche_calcola_totale_carta(cliente):
     finally:
         socketio.emit = original_emit
 
-    # Verifica i totali carta/contanti.
-    with ottieni_db() as connessione:
-        stats = connessione.execute("SELECT * FROM statistiche_totali").fetchone()
-        assert stats["totale_carta"] == 20
-        assert stats["totale_contanti"] == 0
+    # Verifica i totali carta/contanti dalla cache in memoria.
+    stats = costruisci_dati_statistiche()
+    assert stats["totali"]["totale_carta"] == 20
+    assert stats["totali"]["totale_contanti"] == 0
 
 def test_cambia_stato_automatico_non_prosegue_se_annullato(cliente, monkeypatch):
     # Simula un timer già annullato prima della scadenza.

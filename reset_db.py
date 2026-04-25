@@ -17,13 +17,10 @@ def reset_db():
         conn = sq.connect(db_path)
         cursor = conn.cursor()
 
-        # Elimina i dati operativi e statistiche.
+        # Elimina i dati operativi.
         tables_to_clear = [
             "ordini",
             "ordini_prodotti",
-            "statistiche_totali",
-            "statistiche_categorie",
-            "statistiche_ore",
             "prodotti",
         ]
 

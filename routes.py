@@ -1256,33 +1256,3 @@ def api_amministrazione_prodotti_html():
     )
 
 
-# ==================== Route: utilità ====================
-
-@app.route("/genera_statistiche/")
-def genera_statistiche():
-    """Forzare ricalcolo statistiche e reindirizzare ad amministrazione.
-
-    Output: redirect alla pagina amministrazione.
-    """
-    # Forza un ricalcolo statistiche e torna alla pagina amministrazione.
-    # Utile quando si vogliono aggiornare i grafici manualmente.
-    ricalcola_statistiche()
-    return redirect("/amministrazione/")
-
-
-@app.route("/debug/reset_dati/")
-@accesso_richiesto
-@richiedi_permesso("AMMINISTRAZIONE")
-def debug_reset_dati():
-    """Azzerare ordini e ripristinare magazzino (utility di debug).
-
-    Output: redirect alla pagina amministrazione.
-    Attenzione: operazione irreversibile nel DB corrente.
-    """
-    # Utility di debug: azzera ordini e ripristina magazzino.
-    # Attenzione: cancella dati in modo irreversibile nel DB corrente.
-    esegui_query("DELETE FROM ordini_prodotti", commit=True)
-    esegui_query("DELETE FROM ordini", commit=True)
-    esegui_query("UPDATE prodotti SET disponibile = 1, quantita = 100, venduti = 0", commit=True)
-    ricalcola_statistiche()
-    return redirect("/amministrazione/")

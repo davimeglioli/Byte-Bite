@@ -31,26 +31,6 @@ CREATE TABLE IF NOT EXISTS ordini_prodotti (
     PRIMARY KEY (ordine_id, prodotto_id)
 );
 
--- ==================== Statistiche ====================
-CREATE TABLE IF NOT EXISTS statistiche_totali (
-    id INT PRIMARY KEY,
-    ordini_totali INT NOT NULL DEFAULT 0,
-    ordini_completati INT NOT NULL DEFAULT 0,
-    totale_incasso REAL NOT NULL DEFAULT 0,
-    totale_contanti REAL NOT NULL DEFAULT 0,
-    totale_carta REAL NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS statistiche_categorie (
-    categoria_dashboard TEXT PRIMARY KEY,
-    totale INT NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS statistiche_ore (
-    ora TINYINT PRIMARY KEY,
-    totale INT NOT NULL DEFAULT 0
-);
-
 -- ==================== Utenti ====================
 CREATE TABLE IF NOT EXISTS utenti (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

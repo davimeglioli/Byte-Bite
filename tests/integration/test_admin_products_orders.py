@@ -226,11 +226,10 @@ def test_ricalcola_statistiche_diretto(cliente):
     # Import locale per coprire chiamata diretta.
     from app import ricalcola_statistiche
 
-    # Pulisce tabelle statistiche e inserisce un ordine completato.
+    # Pulisce dati operativi e inserisce un ordine completato.
     with ottieni_db() as connessione:
-        connessione.execute("DELETE FROM statistiche_totali")
-        connessione.execute("DELETE FROM statistiche_categorie")
-        connessione.execute("DELETE FROM statistiche_ore")
+        connessione.execute("DELETE FROM ordini")
+        connessione.execute("DELETE FROM ordini_prodotti")
 
         connessione.execute(
             "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (500, 'Stat Prod', 10, 100, 0, 'Test', 'Cucina')"
@@ -253,13 +252,12 @@ def test_ricalcola_statistiche_diretto(cliente):
     finally:
         socketio.emit = original_emit
 
-    # Verifica che le statistiche siano state aggiornate.
-    with ottieni_db() as connessione:
-        tot = connessione.execute("SELECT * FROM statistiche_totali").fetchone()
-        assert tot["ordini_totali"] >= 1
-        assert tot["totale_incasso"] >= 20
+    # Verifica che la cache statistiche sia stata aggiornata.
+    from services import costruisci_dati_statistiche
 
-        cat = connessione.execute(
-            "SELECT * FROM statistiche_categorie WHERE categoria_dashboard = 'Cucina'"
-        ).fetchone()
-        assert cat["totale"] >= 2
+    stats = costruisci_dati_statistiche()
+    assert stats["totali"]["ordini_totali"] >= 1
+    assert stats["totali"]["totale_incasso"] >= 20
+    cucina = next((r for r in stats["categorie"] if r["categoria_dashboard"] == "Cucina"), None)
+    assert cucina is not None
+    assert cucina["totale"] >= 2

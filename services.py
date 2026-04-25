@@ -1,7 +1,14 @@
+import copy
+import threading
+
 from flask_socketio import join_room
 
 from core import app, socketio, timer_attivi
-from db import esegui_query, ottieni_db
+from db import esegui_query
+
+# Cache in-memory per statistiche amministrazione.
+_statistiche_cache = None
+_statistiche_lock = threading.RLock()
 
 
 def emissione_sicura(evento, dati, stanza=None):
@@ -86,146 +93,8 @@ def ottieni_ordini_per_categoria(categoria):
     return ordini_non_completati, ordini_completati
 
 
-def ricalcola_statistiche():
-    """Ricalcola tutte le statistiche e le salva nel database."""
-
-    # Calcola i totali complessivi e per metodo di pagamento.
-    statistiche_totali = esegui_query(
-        """
-        SELECT
-            (SELECT COUNT(*) FROM ordini) as ordini_totali,
-            (SELECT COUNT(*) FROM ordini WHERE completato = 1) as ordini_completati,
-            COALESCE(SUM(p.prezzo * op.quantita), 0) as totale_incasso,
-            COALESCE(SUM(CASE WHEN o.metodo_pagamento = 'Contanti' THEN p.prezzo * op.quantita ELSE 0 END), 0) as totale_contanti,
-            COALESCE(SUM(CASE WHEN o.metodo_pagamento != 'Contanti' THEN p.prezzo * op.quantita ELSE 0 END), 0) as totale_carta
-        FROM ordini o
-        JOIN ordini_prodotti op ON o.id = op.ordine_id
-        JOIN prodotti p ON op.prodotto_id = p.id
-    """,
-        uno=True,
-    )
-
-    # Calcola i volumi per categoria dashboard.
-    statistiche_categorie = esegui_query(
-        """
-        SELECT p.categoria_dashboard, SUM(op.quantita) as totale
-        FROM ordini_prodotti op
-        JOIN prodotti p ON op.prodotto_id = p.id
-        GROUP BY p.categoria_dashboard
-    """
-    )
-
-    # Calcola la distribuzione ordini per ora del giorno.
-    statistiche_ore = esegui_query(
-        """
-        SELECT CAST(strftime('%H', data_ordine) AS INT) as ora, COUNT(*) as totale
-        FROM ordini
-        GROUP BY ora
-    """
-    )
-
-    with ottieni_db() as connessione:
-        cursore = connessione.cursor()
-
-        # Rigenera completamente le tabelle statistiche per mantenere coerenza.
-        cursore.execute("DELETE FROM statistiche_totali")
-        cursore.execute("DELETE FROM statistiche_categorie")
-        cursore.execute("DELETE FROM statistiche_ore")
-
-        # Inserisce una sola riga per i totali generali.
-        cursore.execute(
-            """
-            INSERT INTO statistiche_totali
-            (id, ordini_totali, ordini_completati, totale_incasso, totale_contanti, totale_carta)
-            VALUES (1, ?, ?, ?, ?, ?)
-        """,
-            (
-                statistiche_totali["ordini_totali"] or 0,
-                statistiche_totali["ordini_completati"] or 0,
-                statistiche_totali["totale_incasso"],
-                statistiche_totali["totale_contanti"],
-                statistiche_totali["totale_carta"],
-            ),
-        )
-
-        # Mantiene l'ordine delle categorie coerente con la UI.
-        categorie_fisse = ["Bar", "Cucina", "Griglia", "Gnoccheria"]
-        totali_per_categoria = {riga["categoria_dashboard"]: riga["totale"] for riga in statistiche_categorie}
-        for categoria in categorie_fisse:
-            # Usa 0 quando una categoria non ha vendite.
-            valore = totali_per_categoria.get(categoria, 0)
-            cursore.execute(
-                "INSERT INTO statistiche_categorie (categoria_dashboard, totale) VALUES (?, ?)",
-                (categoria, valore),
-            )
-
-        # Inserisce tutte le ore 0-23 così il grafico è sempre completo.
-        totali_per_ora = {riga["ora"]: riga["totale"] for riga in statistiche_ore}
-        for ora in range(24):
-            valore = totali_per_ora.get(ora, 0)
-            cursore.execute("INSERT INTO statistiche_ore (ora, totale) VALUES (?, ?)", (ora, valore))
-
-        connessione.commit()
-
-    # Notifica globale: le dashboard possono aggiornare i widget.
-    emissione_sicura("aggiorna_dashboard", {})
-
-
-def cambia_stato_automatico(ordine_id, categoria, timer_id):
-    """Gestisce il passaggio automatico allo stato 'Completato' dopo un timeout."""
-    chiave_timer = (ordine_id, categoria)
-
-    # Attende un breve timeout (con possibilità di annullamento).
-    for _ in range(10):
-        # Sleep cooperativo per non bloccare l'event loop SocketIO.
-        socketio.sleep(1)
-        if (
-            chiave_timer not in timer_attivi
-            or timer_attivi[chiave_timer]["id"] != timer_id
-            or timer_attivi[chiave_timer]["annulla"]
-        ):
-            return
-
-    # Ricontrolla lo stato del timer prima di aggiornare il DB.
-    if chiave_timer not in timer_attivi or timer_attivi[chiave_timer]["annulla"]:
-        return
-
-    # Forza lo stato "Completato" per tutti i prodotti della categoria.
-    esegui_query(
-        """
-        UPDATE ordini_prodotti
-        SET stato = 'Completato'
-        WHERE ordine_id = ?
-        AND prodotto_id IN (
-            SELECT id FROM prodotti WHERE categoria_dashboard = ?
-        );
-    """,
-        (ordine_id, categoria),
-        commit=True,
-    )
-
-    # Aggiorna il flag completato dell'ordine se non restano prodotti non completati.
-    residui = esegui_query(
-        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
-        (ordine_id,),
-        uno=True,
-    )["c"]
-    esegui_query(
-        "UPDATE ordini SET completato = ? WHERE id = ?",
-        (1 if residui == 0 else 0, ordine_id),
-        commit=True,
-    )
-
-    # Rimuove il timer e notifica la dashboard interessata.
-    timer_attivi.pop(chiave_timer, None)
-
-    emissione_sicura("aggiorna_dashboard", {"categoria": categoria}, stanza=categoria)
-    # Aggiorna statistiche in background per non rallentare gli update realtime.
-    socketio.start_background_task(ricalcola_statistiche)
-
-
-def costruisci_dati_statistiche():
-    # Aggrega dati per grafici e riepiloghi lato amministrazione.
+def _calcola_dati_statistiche_da_db():
+    """Calcola le statistiche direttamente dalle tabelle operative."""
     # Numero ordini totali e completati.
     ordini_totali = esegui_query("SELECT COUNT(*) AS c FROM ordini", uno=True)["c"]
     ordini_completati = esegui_query("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", uno=True)["c"]
@@ -312,3 +181,80 @@ def costruisci_dati_statistiche():
         "ore": ore,
         "top10": top10,
     }
+
+
+def ricalcola_statistiche(notifica=True):
+    """Ricalcola le statistiche e aggiorna la cache in memoria."""
+    global _statistiche_cache
+    nuovi_dati = _calcola_dati_statistiche_da_db()
+    with _statistiche_lock:
+        # Salva una copia isolata per evitare mutazioni accidentali dal chiamante.
+        _statistiche_cache = copy.deepcopy(nuovi_dati)
+    if notifica:
+        emissione_sicura("aggiorna_dashboard", {})
+
+
+def cambia_stato_automatico(ordine_id, categoria, timer_id):
+    """Gestisce il passaggio automatico allo stato 'Completato' dopo un timeout."""
+    chiave_timer = (ordine_id, categoria)
+
+    # Attende un breve timeout (con possibilità di annullamento).
+    for _ in range(10):
+        # Sleep cooperativo per non bloccare l'event loop SocketIO.
+        socketio.sleep(1)
+        if (
+            chiave_timer not in timer_attivi
+            or timer_attivi[chiave_timer]["id"] != timer_id
+            or timer_attivi[chiave_timer]["annulla"]
+        ):
+            return
+
+    # Ricontrolla lo stato del timer prima di aggiornare il DB.
+    if chiave_timer not in timer_attivi or timer_attivi[chiave_timer]["annulla"]:
+        return
+
+    # Forza lo stato "Completato" per tutti i prodotti della categoria.
+    esegui_query(
+        """
+        UPDATE ordini_prodotti
+        SET stato = 'Completato'
+        WHERE ordine_id = ?
+        AND prodotto_id IN (
+            SELECT id FROM prodotti WHERE categoria_dashboard = ?
+        );
+    """,
+        (ordine_id, categoria),
+        commit=True,
+    )
+
+    # Aggiorna il flag completato dell'ordine se non restano prodotti non completati.
+    residui = esegui_query(
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        (ordine_id,),
+        uno=True,
+    )["c"]
+    esegui_query(
+        "UPDATE ordini SET completato = ? WHERE id = ?",
+        (1 if residui == 0 else 0, ordine_id),
+        commit=True,
+    )
+
+    # Rimuove il timer e notifica la dashboard interessata.
+    timer_attivi.pop(chiave_timer, None)
+
+    emissione_sicura("aggiorna_dashboard", {"categoria": categoria}, stanza=categoria)
+    # Aggiorna statistiche in background per non rallentare gli update realtime.
+    socketio.start_background_task(ricalcola_statistiche)
+
+
+def costruisci_dati_statistiche():
+    """Restituisce le statistiche dalla cache RAM (lazy init al primo uso)."""
+    global _statistiche_cache
+    with _statistiche_lock:
+        if _statistiche_cache is not None:
+            return copy.deepcopy(_statistiche_cache)
+
+    # Primo accesso dopo riavvio: calcolo una volta e riuso poi la cache.
+    ricalcola_statistiche(notifica=False)
+    with _statistiche_lock:
+        return copy.deepcopy(_statistiche_cache or {})
