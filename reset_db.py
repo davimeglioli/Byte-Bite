@@ -1,162 +1,39 @@
 import os
-import sqlite3 as sq
+import psycopg2
+
+from create_db import PRODOTTI_DEFAULT
+
 
 def reset_db():
-    # Percorso del database locale.
-    db_path = "db.sqlite3"
-
-    # Connessione inizialmente assente, viene valorizzata nel try.
     conn = None
-
-    # Verifica esistenza del file DB.
-    if not os.path.exists(db_path):
-        return
-
     try:
-        # Apre connessione e cursore.
-        conn = sq.connect(db_path)
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "byte_bite"),
+            user=os.getenv("DB_USER", "byte_bite_user"),
+            password=os.getenv("DB_PASSWORD", "secure_password_change_me"),
+            connect_timeout=30,
+        )
         cursor = conn.cursor()
 
-        # Elimina i dati operativi.
-        tables_to_clear = [
-            "ordini",
-            "ordini_prodotti",
-            "prodotti",
-        ]
+        cursor.execute("TRUNCATE ordini, prodotti RESTART IDENTITY CASCADE")
 
-        # Svuota le tabelle una per una.
-        for table in tables_to_clear:
-            cursor.execute(f"DELETE FROM {table}")
+        cursor.executemany(
+            "INSERT INTO prodotti"
+            " (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            PRODOTTI_DEFAULT,
+        )
 
-        # Reset delle sequenze autoincrement.
-        cursor.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name IN ('ordini', 'prodotti')")
-
-        # Inserimento prodotti di default.
-
-        products_sql = """
-        -- APERITIVI 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Spritz Aperol', 4, 'Aperitivi', 'Bar', 1, 100, 0), 
-        ('Spritz Campari', 4, 'Aperitivi', 'Bar', 1, 100, 0), 
-        ('Spritz Hugo', 4, 'Aperitivi', 'Bar', 1, 100, 0), 
-        ('Analcolico', 4, 'Aperitivi', 'Bar', 1, 100, 0); 
-        
-        -- PAELLA 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Menu Completo: Antipasto - Paella - Dolce', 25, 'Paella', 'Cucina', 1, 100, 0); 
-        
-        -- PRIMI 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Tortelli Verdi Vecchia Modena', 9.5, 'Primi', 'Cucina', 1, 100, 0), 
-        ('Tortelli Verdi Burro e Salvia', 9, 'Primi', 'Cucina', 1, 100, 0), 
-        ("Riso Venere dell'Orto", 8, 'Primi', 'Cucina', 1, 100, 0), 
-        ('Garganelli al Ragù di Carne', 8, 'Primi', 'Cucina', 1, 100, 0); 
-        
-        -- SECONDI 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Picanha ai Ferri', 16.5, 'Secondi', 'Griglia', 1, 100, 0), 
-        ('Grigliata Mista di Carne', 12, 'Secondi', 'Griglia', 1, 100, 0), 
-        ('Salsiccia, Wurstel e Patatine', 8.5, 'Secondi', 'Griglia', 1, 100, 0), 
-        ('Caprese', 8, 'Secondi', 'Griglia', 1, 100, 0), 
-        ('Fritto Misto di Pesce', 12.5, 'Secondi', 'Griglia', 1, 100, 0), 
-        ('Patatine Fritte', 3, 'Secondi', 'Gnoccheria', 1, 100, 0), 
-        ('Misticanza', 3, 'Secondi', 'Gnoccheria', 1, 100, 0); 
-        
-        -- GNOCCO E TIGELLE 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Gnocco Fritto Vuoto', 0.6, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Gnocco Fritto con Prosciutto Cotto', 3.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Gnocco Fritto con Prosciutto Crudo', 3.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Gnocco Fritto con Salame', 3.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Gnocco Fritto con Coppa', 3.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Tigella Semplice', 0.6, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Tigella con Prosciutto Cotto', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Tigella con Prosciutto Crudo', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Tigella con Salame', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Tigella con Coppa', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Piatto Affettato Misto', 7, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Piatto Prosciutto Crudo', 8, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Stracchino e Rucola', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Nutella', 1, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Lardo', 1.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Parmigiano', 1.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Lardo e Parmigiano', 2.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0), 
-        ('Maionese/ Ketchup', 0.5, 'Gnocco e Tigelle', 'Gnoccheria', 1, 100, 0); 
-        
-        -- DA BERE 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Acqua Naturale 0,5L', 1.0, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Acqua Naturale 1,5L', 2.0, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Acqua Frizzante 0,5L', 1.0, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Acqua Frizzante 1,5L', 1.0, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Birra Spina Piccola', 2, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Birra Spina Media', 3.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Birra Spina Weiss Piccola', 3, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Birra Spina Weiss Media', 4.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Coca Cola Spina Piccola', 2, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Coca Cola Spina Media', 3.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Coca Cola in lattina', 2.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Fanta in lattina', 2.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Lambrusco Bottiglia 0,75L', 6, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Vino Bianco Bicchiere', 1.5, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Vino Bianco Caraffa 0,50L', 4, 'Da Bere', 'Bar', 1, 100, 0), 
-        ('Vino Bianco Caraffa 1L', 6.5, 'Da Bere', 'Bar', 1, 100, 0); 
-        
-        -- DOLCI 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Tiramisù', 4, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Zuppa Inglese', 4, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Cheescake ai Frutti di Bosco', 4, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Sorbetto al Limone', 3, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Caffè', 1, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Caffè Corretto', 2, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Limoncino', 3, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Nocino', 3, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Amaro del Capo', 3, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Montenegro', 3, 'Dolci', 'Bar', 1, 100, 0), 
-        ('Grappa', 3, 'Dolci', 'Bar', 1, 100, 0); 
-        
-        -- LONG DRINK 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Gin Tonic', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Gin Tonic Premium', 8, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Gin Lemon', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Vodka Tonic', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Vodka Lemon', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Vodka & Fruit', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Rum e Cola', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Malibu e Cola', 5, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Mojito', 6, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Barbie Mojito', 6, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Cuba Libre', 6, 'Long Drink', 'Bar', 1, 100, 0), 
-        ('Caipiroska Fragola', 6, 'Long Drink', 'Bar', 1, 100, 0); 
-        
-        -- SHORT DRINK 
-        INSERT INTO prodotti (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti) 
-        VALUES 
-        ('Negroni', 4, 'Short Drink', 'Bar', 1, 100, 0), 
-        ('Americano', 4, 'Short Drink', 'Bar', 1, 100, 0);
-        """
-        
-        cursor.executescript(products_sql)
-
-        # Commit delle modifiche.
         conn.commit()
-
-    except sq.Error:
-        pass
+    except psycopg2.Error:
+        if conn:
+            conn.rollback()
     finally:
-        # Chiude connessione se aperta.
         if conn:
             conn.close()
+
 
 if __name__ == "__main__":
     reset_db()

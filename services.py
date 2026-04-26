@@ -53,7 +53,7 @@ def ottieni_ordini_per_categoria(categoria):
         FROM ordini AS o
         JOIN ordini_prodotti AS op ON o.id = op.ordine_id
         JOIN prodotti AS p ON p.id = op.prodotto_id
-        WHERE p.categoria_dashboard = ?
+        WHERE p.categoria_dashboard = %s
         ORDER BY o.data_ordine ASC;
     """,
         (categoria,),
@@ -97,7 +97,7 @@ def _calcola_dati_statistiche_da_db():
     """Calcola le statistiche direttamente dalle tabelle operative."""
     # Numero ordini totali e completati.
     ordini_totali = esegui_query("SELECT COUNT(*) AS c FROM ordini", uno=True)["c"]
-    ordini_completati = esegui_query("SELECT COUNT(*) AS c FROM ordini WHERE completato = 1", uno=True)["c"]
+    ordini_completati = esegui_query("SELECT COUNT(*) AS c FROM ordini WHERE completato = TRUE", uno=True)["c"]
 
     # Totale incasso indipendentemente dal metodo.
     riga_totale_incasso = esegui_query(
@@ -108,7 +108,7 @@ def _calcola_dati_statistiche_da_db():
         """,
         uno=True,
     )
-    totale_incasso = riga_totale_incasso["totale"] or 0
+    totale_incasso = float(riga_totale_incasso["totale"] or 0)
 
     # Totale pagato in contanti.
     riga_totale_contanti = esegui_query(
@@ -121,7 +121,7 @@ def _calcola_dati_statistiche_da_db():
         """,
         uno=True,
     )
-    totale_contanti = riga_totale_contanti["totale"] or 0
+    totale_contanti = float(riga_totale_contanti["totale"] or 0)
 
     # Totale pagato con carta.
     riga_totale_carta = esegui_query(
@@ -134,16 +134,16 @@ def _calcola_dati_statistiche_da_db():
         """,
         uno=True,
     )
-    totale_carta = riga_totale_carta["totale"] or 0
+    totale_carta = float(riga_totale_carta["totale"] or 0)
 
     # Distribuzione ordini per ora.
     righe_ore = esegui_query(
         """
-        SELECT CAST(strftime('%H', data_ordine) AS INT) AS ora, COUNT(*) AS totale
+        SELECT EXTRACT(HOUR FROM data_ordine)::INT AS ora, COUNT(*) AS totale
         FROM ordini
-        GROUP BY ora
+        GROUP BY EXTRACT(HOUR FROM data_ordine)
         ORDER BY ora ASC
-        """
+"""
     )
     ore = [dict(r) for r in righe_ore] if righe_ore else []
 
@@ -156,7 +156,7 @@ def _calcola_dati_statistiche_da_db():
         GROUP BY p.categoria_dashboard
         """
     )
-    categorie = [dict(r) for r in righe_cat] if righe_cat else []
+    categorie = [{"categoria_dashboard": r["categoria_dashboard"], "totale": int(r["totale"])} for r in righe_cat] if righe_cat else []
 
     # Classifica prodotti più venduti.
     righe_top10 = esegui_query(
@@ -218,9 +218,9 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
         """
         UPDATE ordini_prodotti
         SET stato = 'Completato'
-        WHERE ordine_id = ?
+        WHERE ordine_id = %s
         AND prodotto_id IN (
-            SELECT id FROM prodotti WHERE categoria_dashboard = ?
+            SELECT id FROM prodotti WHERE categoria_dashboard = %s
         );
     """,
         (ordine_id, categoria),
@@ -229,13 +229,13 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
 
     # Aggiorna il flag completato dell'ordine se non restano prodotti non completati.
     residui = esegui_query(
-        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = %s AND stato != 'Completato'",
         (ordine_id,),
         uno=True,
     )["c"]
     esegui_query(
-        "UPDATE ordini SET completato = ? WHERE id = ?",
-        (1 if residui == 0 else 0, ordine_id),
+        "UPDATE ordini SET completato = %s WHERE id = %s",
+        (residui == 0, ordine_id),
         commit=True,
     )
 

@@ -39,7 +39,7 @@ def accesso():
         # Recupera utente e controlla stato account.
         utente = esegui_query("""
             SELECT id, username, password_hash, is_admin, attivo
-            FROM utenti WHERE username = ?
+            FROM utenti WHERE username = %s
         """, (username,), uno=True)
 
         if not utente:
@@ -108,7 +108,7 @@ def cassa():
 @app.route("/aggiungi_ordine/", methods=["POST"])
 def aggiungi_ordine():
     # Converte i campi del form nel formato atteso dal DB.
-    asporto = 1 if request.form.get("isTakeaway") == "on" else 0
+    asporto = request.form.get("isTakeaway") == "on"
     nome_cliente = request.form.get("nome_cliente")
     numero_tavolo = request.form.get("numero_tavolo")
     numero_persone = request.form.get("numero_persone")
@@ -138,16 +138,17 @@ def aggiungi_ordine():
             # Inserisce l'intestazione ordine.
             cursore.execute("""
                 INSERT INTO ordini (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
             """, (asporto, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento))
-            id_ordine = cursore.lastrowid
+            id_ordine = cursore.fetchone()["id"]
 
             for prodotto in prodotti:
                 # Scala la quantità solo se c'è disponibilità sufficiente.
                 cursore.execute("""
                     UPDATE prodotti
-                    SET quantita = quantita - ?, venduti = venduti + ?
-                    WHERE id = ? AND quantita >= ?
+                    SET quantita = quantita - %s, venduti = venduti + %s
+                    WHERE id = %s AND quantita >= %s
                 """, (prodotto["quantita"], prodotto["quantita"], prodotto["id"], prodotto["quantita"]))
 
                 if cursore.rowcount == 0:
@@ -157,7 +158,7 @@ def aggiungi_ordine():
                 # Registra la riga ordine-prodotti con stato iniziale.
                 cursore.execute("""
                     INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                 """, (id_ordine, prodotto["id"], prodotto["quantita"], "In Attesa"))
 
             # Individua le dashboard da aggiornare in tempo reale.
@@ -165,9 +166,9 @@ def aggiungi_ordine():
                 SELECT DISTINCT prodotti.categoria_dashboard
                 FROM ordini_prodotti
                 JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
-                WHERE ordini_prodotti.ordine_id = ?
+                WHERE ordini_prodotti.ordine_id = %s
             """, (id_ordine,))
-            categorie_dashboard = [riga[0] for riga in cursore.fetchall()]
+            categorie_dashboard = [riga["categoria_dashboard"] for riga in cursore.fetchall()]
             # Conferma atomica: o tutto scritto o nulla.
             connessione.commit()
 
@@ -242,7 +243,7 @@ def cambia_stato():
         SELECT stato
         FROM ordini_prodotti
         JOIN prodotti ON prodotti.id = ordini_prodotti.prodotto_id
-        WHERE ordine_id = ? AND prodotti.categoria_dashboard = ?
+        WHERE ordine_id = %s AND prodotti.categoria_dashboard = %s
         LIMIT 1;
     """, (id_ordine, categoria), uno=True)
 
@@ -252,6 +253,9 @@ def cambia_stato():
     stati = ["In Attesa", "In Preparazione", "Pronto", "Completato"]
 
     chiave_timer = (id_ordine, categoria)
+
+    if stato_attuale == "Completato":
+        return jsonify({"errore": "Ordine già completato"}), 400
 
     if stato_attuale == "Pronto":
         # Se si torna indietro da "Pronto", annulla eventuale completamento automatico.
@@ -268,23 +272,23 @@ def cambia_stato():
     # Applica lo stato a tutti i prodotti della categoria per quell'ordine.
     esegui_query("""
         UPDATE ordini_prodotti
-        SET stato = ?
-        WHERE ordine_id = ?
+        SET stato = %s
+        WHERE ordine_id = %s
         AND prodotto_id IN (
-            SELECT id FROM prodotti WHERE categoria_dashboard = ?
+            SELECT id FROM prodotti WHERE categoria_dashboard = %s
         );
     """, (nuovo_stato, id_ordine, categoria), commit=True)
 
     # Aggiorna il flag completato dell'ordine in base ai residui.
     residui = esegui_query(
-        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = ? AND stato != 'Completato'",
+        "SELECT COUNT(*) AS c FROM ordini_prodotti WHERE ordine_id = %s AND stato != 'Completato'",
         (id_ordine,),
         uno=True
     )["c"]
     # Un ordine è completato solo se tutte le righe sono "Completato".
     esegui_query(
-        "UPDATE ordini SET completato = ? WHERE id = ?",
-        (1 if residui == 0 else 0, id_ordine),
+        "UPDATE ordini SET completato = %s WHERE id = %s",
+        (residui == 0, id_ordine),
         commit=True
     )
 
@@ -337,11 +341,11 @@ def amministrazione():
             quantita,
             venduti
         FROM prodotti
-        ORDER BY categoria_menu;
+        ORDER BY MIN(id) OVER (PARTITION BY categoria_menu), id;
     """)
 
     # Liste categorie per filtro/selector lato UI.
-    categorie_db = esegui_query("SELECT DISTINCT categoria_menu FROM prodotti")
+    categorie_db = esegui_query("SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)")
     categorie = [riga["categoria_menu"] for riga in categorie_db]
     prima_categoria = categorie[0] if categorie else None
 
@@ -352,7 +356,7 @@ def amministrazione():
         # Converte la riga DB in dict serializzabile/iterabile.
         utente = dict(riga)
         righe_permessi = esegui_query(
-            "SELECT pagina FROM permessi_pagine WHERE utente_id = ?",
+            "SELECT pagina FROM permessi_pagine WHERE utente_id = %s",
             (utente["id"],),
         )
         # Espone solo la lista di stringhe pagina.
@@ -497,7 +501,7 @@ def esporta_statistiche():
                     op.stato
                 FROM ordini_prodotti op
                 JOIN prodotti p ON p.id = op.prodotto_id
-                WHERE op.ordine_id = ?
+                WHERE op.ordine_id = %s
                 ORDER BY p.categoria_menu, p.nome
                 """,
                 (id_ordine,)
@@ -583,7 +587,7 @@ def aggiungi_prodotto():
         categoria_menu = dati.get("categoria_menu")
         prezzo = float(dati.get("prezzo", 0))
         quantita = int(dati.get("quantita", 0))
-        disponibile = 1 if dati.get("disponibile") else 0
+        disponibile = bool(dati.get("disponibile"))
 
         # Validazione minima dei campi obbligatori.
         if not nome or not categoria_dashboard or not categoria_menu:
@@ -591,13 +595,13 @@ def aggiungi_prodotto():
 
         if quantita > 0:
             # Se c'è stock, il prodotto deve risultare disponibile.
-            disponibile = 1
+            disponibile = True
 
         # Inserisce il prodotto con venduti iniziali a 0.
         esegui_query(
             """
             INSERT INTO prodotti (nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile, venduti)
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            VALUES (%s, %s, %s, %s, %s, %s, 0)
             """,
             (nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile),
             commit=True,
@@ -643,14 +647,14 @@ def modifica_prodotto():
         # Converte quantità e calcola disponibile in modo automatico.
         quantita = int(dati["quantita"])
         prezzo = float(dati["prezzo"])
-        disponibile = 1 if quantita > 0 else 0
+        disponibile = quantita > 0
 
         # Aggiorna nome, categoria, prezzo e stock.
         esegui_query(
             """
             UPDATE prodotti
-            SET nome = ?, categoria_dashboard = ?, prezzo = ?, quantita = ?, disponibile = ?
-            WHERE id = ?
+            SET nome = %s, categoria_dashboard = %s, prezzo = %s, quantita = %s, disponibile = %s
+            WHERE id = %s
             """,
             (
                 dati["nome"],
@@ -708,14 +712,14 @@ def rifornisci_prodotto():
 
     # Aumenta lo stock.
     esegui_query(
-        "UPDATE prodotti SET quantita = quantita + ? WHERE id = ?",
+        "UPDATE prodotti SET quantita = quantita + %s WHERE id = %s",
         (quantita, id_prodotto),
         commit=True,
     )
 
     # Se lo stock torna > 0, forza disponibile.
     esegui_query(
-        "UPDATE prodotti SET disponibile = 1 WHERE id = ? AND quantita > 0",
+        "UPDATE prodotti SET disponibile = TRUE WHERE id = %s AND quantita > 0",
         (id_prodotto,),
         commit=True,
     )
@@ -749,7 +753,7 @@ def elimina_prodotto():
 
     try:
         # Eliminazione diretta per id.
-        esegui_query("DELETE FROM prodotti WHERE id = ?", (dati["id"],), commit=True)
+        esegui_query("DELETE FROM prodotti WHERE id = %s", (dati["id"],), commit=True)
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
@@ -803,8 +807,8 @@ def modifica_ordine():
         esegui_query(
             """
             UPDATE ordini
-            SET nome_cliente = ?, numero_tavolo = ?, numero_persone = ?, metodo_pagamento = ?
-            WHERE id = ?
+            SET nome_cliente = %s, numero_tavolo = %s, numero_persone = %s, metodo_pagamento = %s
+            WHERE id = %s
             """,
             (nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, id_ordine),
             commit=True,
@@ -860,7 +864,7 @@ def elimina_ordine():
                 """
                 SELECT prodotto_id, quantita
                 FROM ordini_prodotti
-                WHERE ordine_id = ?
+                WHERE ordine_id = %s
                 """,
                 (id_ordine,),
             )
@@ -874,8 +878,8 @@ def elimina_ordine():
                 cursore.execute(
                     """
                     UPDATE prodotti
-                    SET quantita = quantita + ?, venduti = venduti - ?
-                    WHERE id = ?
+                    SET quantita = quantita + %s, venduti = venduti - %s
+                    WHERE id = %s
                     """,
                     (quantita, quantita, prodotto_id),
                 )
@@ -884,15 +888,15 @@ def elimina_ordine():
                 cursore.execute(
                     """
                     UPDATE prodotti
-                    SET disponibile = 1
-                    WHERE id = ? AND quantita > 0
+                    SET disponibile = TRUE
+                    WHERE id = %s AND quantita > 0
                     """,
                     (prodotto_id,),
                 )
 
             # Rimuove prima le righe e poi l'intestazione ordine.
-            cursore.execute("DELETE FROM ordini_prodotti WHERE ordine_id = ?", (id_ordine,))
-            cursore.execute("DELETE FROM ordini WHERE id = ?", (id_ordine,))
+            cursore.execute("DELETE FROM ordini_prodotti WHERE ordine_id = %s", (id_ordine,))
+            cursore.execute("DELETE FROM ordini WHERE id = %s", (id_ordine,))
             connessione.commit()
 
         # Aggiorna statistiche dopo eliminazione.
@@ -936,7 +940,7 @@ def ordine_dettagli(ordine_id):
             op.stato
         FROM ordini_prodotti op
         JOIN prodotti p ON op.prodotto_id = p.id
-        WHERE op.ordine_id = ?
+        WHERE op.ordine_id = %s
         """,
         (ordine_id,),
     )
@@ -982,7 +986,7 @@ def api_ordine(id_ordine):
         """
         SELECT id, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, data_ordine
         FROM ordini
-        WHERE id = ?
+        WHERE id = %s
         """,
         (id_ordine,),
         uno=True,
@@ -997,7 +1001,7 @@ def api_ordine(id_ordine):
         SELECT p.nome AS nome, op.quantita AS quantita, p.prezzo AS prezzo
         FROM ordini_prodotti op
         JOIN prodotti p ON p.id = op.prodotto_id
-        WHERE op.ordine_id = ?
+        WHERE op.ordine_id = %s
         """,
         (id_ordine,),
     )
@@ -1028,8 +1032,8 @@ def aggiungi_utente():
     # Campi base utente.
     username = dati.get("username")
     password = dati.get("password")
-    is_admin = 1 if dati.get("is_admin") else 0
-    attivo = 1 if dati.get("attivo") else 0
+    is_admin = bool(dati.get("is_admin"))
+    attivo = bool(dati.get("attivo"))
     permessi = dati.get("permessi", [])
 
     if not username or not password:
@@ -1046,7 +1050,7 @@ def aggiungi_utente():
             cursore = connessione.cursor()
 
             # Evita duplicati username.
-            cursore.execute("SELECT id FROM utenti WHERE username = ?", (username,))
+            cursore.execute("SELECT id FROM utenti WHERE username = %s", (username,))
             if cursore.fetchone():
                 return jsonify({"errore": "Username già in uso"}), 400
 
@@ -1056,14 +1060,15 @@ def aggiungi_utente():
             # Inserisce utente.
             cursore.execute("""
                 INSERT INTO utenti (username, password_hash, is_admin, attivo)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
             """, (username, password_hash, is_admin, attivo))
 
-            id_utente = cursore.lastrowid
+            id_utente = cursore.fetchone()["id"]
 
             # Inserisce permessi associati.
             for pagina in permessi:
-                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)", (id_utente, pagina))
+                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)", (id_utente, pagina))
 
             connessione.commit()
 
@@ -1101,8 +1106,8 @@ def modifica_utente():
         # Legge campi aggiornabili.
         username = dati.get("username")
         password = dati.get("password")
-        is_admin = 1 if dati.get("is_admin") else 0
-        attivo = 1 if dati.get("attivo") else 0
+        is_admin = bool(dati.get("is_admin"))
+        attivo = bool(dati.get("attivo"))
         permessi = dati.get("permessi", [])
 
         # Normalizza permessi.
@@ -1119,21 +1124,21 @@ def modifica_utente():
                 password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=4)).decode()
                 cursore.execute("""
                     UPDATE utenti
-                    SET username = ?, password_hash = ?, is_admin = ?, attivo = ?
-                    WHERE id = ?
+                    SET username = %s, password_hash = %s, is_admin = %s, attivo = %s
+                    WHERE id = %s
                 """, (username, password_hash, is_admin, attivo, id_utente))
             else:
                 cursore.execute("""
                     UPDATE utenti
-                    SET username = ?, is_admin = ?, attivo = ?
-                    WHERE id = ?
+                    SET username = %s, is_admin = %s, attivo = %s
+                    WHERE id = %s
                 """, (username, is_admin, attivo, id_utente))
 
             # Sostituisce l'insieme permessi.
-            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = ?", (id_utente,))
+            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = %s", (id_utente,))
 
             for pagina in permessi:
-                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)", (id_utente, pagina))
+                cursore.execute("INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)", (id_utente, pagina))
 
             connessione.commit()
 
@@ -1179,13 +1184,13 @@ def elimina_utente():
             cursore = connessione.cursor()
 
             # Verifica che l'utente esista.
-            cursore.execute("SELECT id FROM utenti WHERE id = ?", (id_utente,))
+            cursore.execute("SELECT id FROM utenti WHERE id = %s", (id_utente,))
             if not cursore.fetchone():
                 return jsonify({"errore": "Utente non trovato"}), 404
 
             # Elimina permessi e poi utente.
-            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = ?", (id_utente,))
-            cursore.execute("DELETE FROM utenti WHERE id = ?", (id_utente,))
+            cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = %s", (id_utente,))
+            cursore.execute("DELETE FROM utenti WHERE id = %s", (id_utente,))
 
             connessione.commit()
 
@@ -1241,11 +1246,11 @@ def api_amministrazione_prodotti_html():
             quantita,
             venduti
         FROM prodotti
-        ORDER BY categoria_menu;
+        ORDER BY MIN(id) OVER (PARTITION BY categoria_menu), id;
     """)
 
     # Calcola la prima categoria per inizializzare il pannello UI.
-    categorie_db = esegui_query("SELECT DISTINCT categoria_menu FROM prodotti ORDER BY categoria_menu")
+    categorie_db = esegui_query("SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)")
     categorie = [riga["categoria_menu"] for riga in categorie_db]
     prima_categoria = categorie[0] if categorie else None
 

@@ -3,96 +3,83 @@ from app import ottieni_db
 # ==================== Gestione Errori (CRUD) ====================
 
 
-def test_errori_crud_su_risorse_inesistenti(cliente, autenticazione, monkeypatch):
-    # Disabilita emit SocketIO per evitare side-effects.
-    monkeypatch.setattr("app.socketio.emit", lambda *args, **kwargs: None)
-    # Esegue login admin di base.
-    autenticazione.accedi()
-
-    # Modifica prodotto inesistente.
-    risposta = cliente.post(
-        "/api/modifica_prodotto",
-        json={
-            "id": 99999,
-            "nome": "New",
-            "prezzo": 10,
-            "categoria_menu": "Bar",
-            "categoria_dashboard": "Bar",
-            "quantita": 10,
-        },
-    )
-    assert risposta.status_code in [200, 404, 400]
-
-    # Elimina prodotto inesistente.
-    risposta = cliente.post("/api/elimina_prodotto", json={"id": 99999})
-    assert risposta.status_code in [200, 404]
-
-    # Modifica ordine inesistente.
-    risposta = cliente.post(
-        "/api/modifica_ordine",
-        json={
-            "id": 99999,
-            "nome_cliente": "Fantasma",
-            "numero_tavolo": 1,
-            "asporto": 0,
-            "metodo_pagamento": "Contanti",
-        },
-    )
-    assert risposta.status_code in [200, 404, 400]
-
-    # Elimina ordine inesistente.
-    risposta = cliente.post("/api/elimina_ordine", json={"id": 99999})
-    assert risposta.status_code in [200, 404]
-
-    # Recupera ordine inesistente.
-    risposta = cliente.get("/api/ordine/99999")
-    assert risposta.status_code == 404
-
-    # Inserisce un utente duplicato per testare errore di unicità.
+def _imposta_admin(cliente):
+    """Crea un utente admin e imposta la sessione."""
     with ottieni_db() as connessione:
-        connessione.execute("INSERT INTO utenti (username, password_hash) VALUES ('dup', 'hash')")
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("admin_err", "hash", True, True),
+        )
+        id_admin = cursore.fetchone()["id"]
+        connessione.commit()
+    with cliente.session_transaction() as sessione:
+        sessione["id_utente"] = id_admin
+        sessione["username"] = "admin_err"
+    return id_admin
+
+
+def test_aggiungi_utente_username_duplicato_restituisce_400(cliente):
+    _imposta_admin(cliente)
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO utenti (username, password_hash) VALUES (%s, %s)",
+            ("dup_user", "hash"),
+        )
         connessione.commit()
 
-    # Tenta di aggiungere utente con username già esistente.
     risposta = cliente.post(
         "/api/aggiungi_utente",
-        json={"username": "dup", "password": "pass", "is_admin": 0, "attivo": 1},
+        json={"username": "dup_user", "password": "pass", "is_admin": False, "attivo": True},
     )
     assert risposta.status_code == 400
-    assert b"Username gi" in risposta.data or b"in uso" in risposta.data
+    assert b"in uso" in risposta.data
 
-    # Modifica utente inesistente.
+
+def test_aggiungi_utente_senza_credenziali_restituisce_400(cliente):
+    _imposta_admin(cliente)
     risposta = cliente.post(
-        "/api/modifica_utente",
-        json={"id": 99999, "username": "fantasma", "is_admin": 0, "attivo": 1},
+        "/api/aggiungi_utente",
+        json={"is_admin": False, "attivo": True},  # mancano username e password
     )
-    assert risposta.status_code in [200, 404, 500, 400]
+    assert risposta.status_code == 400
 
-    # Elimina utente inesistente.
-    risposta = cliente.post("/api/elimina_utente", json={"id": 99999})
-    assert risposta.status_code in [200, 404, 400]
 
-    # Reset password utente inesistente.
-    risposta = cliente.post("/api/reset_password_utente", json={"id": 99999, "password": "new"})
-    assert risposta.status_code in [200, 404]
+def test_modifica_ordine_senza_id_ordine_restituisce_400(cliente):
+    _imposta_admin(cliente)
+    risposta = cliente.post(
+        "/api/modifica_ordine",
+        json={"nome_cliente": "Fantasma"},  # manca id_ordine
+    )
+    assert risposta.status_code == 400
 
-    # Toggle stato utente inesistente.
-    risposta = cliente.post("/api/toggle_stato_utente", json={"id": 99999})
-    assert risposta.status_code in [200, 404]
 
-    # Recupero permessi utente inesistente.
-    risposta = cliente.get("/api/ottieni_permessi_utente/99999")
-    assert risposta.status_code in [200, 404]
+def test_elimina_utente_inesistente_restituisce_404(cliente):
+    _imposta_admin(cliente)
+    risposta = cliente.post("/api/elimina_utente", json={"id_utente": 99999})
+    assert risposta.status_code == 404
 
-def test_errori_carrello(cliente):
-    # Inizializza carrello vuoto in sessione.
-    with cliente.session_transaction() as sessione:
-        sessione["carrello"] = {}
 
-    # Prova ad aggiungere un prodotto inesistente.
-    risposta = cliente.post("/aggiungi_al_carrello", data={"prodotto_id": "99999"})
-    assert risposta.status_code in [302, 404]
+def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
+    _imposta_admin(cliente)
+    risposta = cliente.post(
+        "/api/aggiungi_prodotto",
+        json={"prezzo": 10, "quantita": 5},  # mancano nome e categorie
+    )
+    assert risposta.status_code == 400
 
-    # Prova a rimuovere un prodotto non presente.
-    risposta = cliente.post("/rimuovi_dal_carrello", data={"prodotto_id": "99999"})
-    assert risposta.status_code in [302, 404]
+
+def test_rifornisci_prodotto_quantita_zero_restituisce_400(cliente):
+    _imposta_admin(cliente)
+    risposta = cliente.post(
+        "/api/rifornisci_prodotto",
+        json={"id": 1, "quantita": 0},  # quantita <= 0 non valida
+    )
+    assert risposta.status_code == 400
+
+
+def test_api_ordine_inesistente_restituisce_404(cliente):
+    risposta = cliente.get("/api/ordine/99999")
+    assert risposta.status_code == 404

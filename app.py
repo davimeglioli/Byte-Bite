@@ -1,6 +1,5 @@
 import os
 import socket
-import sqlite3 as sq
 
 from core import app, socketio
 from core import timer_attivi

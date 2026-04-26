@@ -25,7 +25,7 @@ def ottieni_utente_loggato():
 
     # Prima richiesta o cache invalida: carica dal database.
     utente = esegui_query(
-        "SELECT id, username, is_admin, attivo FROM utenti WHERE id = ?",
+        "SELECT id, username, is_admin, attivo FROM utenti WHERE id = %s",
         (id_utente,),
         uno=True,
     )
@@ -81,7 +81,7 @@ def richiedi_permesso(pagina):
             permesso = esegui_query(
                 """
                 SELECT 1 FROM permessi_pagine
-                WHERE utente_id = ? AND pagina = ?
+                WHERE utente_id = %s AND pagina = %s
             """,
                 (utente["id"], pagina),
                 uno=True,

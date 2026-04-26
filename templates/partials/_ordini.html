@@ -7,7 +7,7 @@
     <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
     <div class="info-ordine">
       <div>Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}</div>
-      <div>{{ ordine['data_ordine'][11:16] }}</div>
+      <div>{{ ordine['data_ordine'].strftime('%H:%M') }}</div>
       <div>Persone: {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}</div>
     </div>
     <div class="{% if completati %}divisore-ordine-completato{% else %}divisore-ordine{% endif %}"></div>

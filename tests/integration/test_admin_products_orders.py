@@ -4,40 +4,32 @@ from app import ottieni_db, socketio
 
 
 def imposta_admin(cliente):
-    # Crea una sessione admin e assegna permesso AMMINISTRAZIONE.
+    """Crea una sessione admin con permesso AMMINISTRAZIONE."""
     with ottieni_db() as connessione:
-        # Inserisce admin nel DB temporaneo.
-        connessione.execute(
-            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
-            ("admin_crud", "hash", 1, 1),
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("admin_crud", "hash", True, True),
         )
-        # Recupera id dell'admin.
-        id_admin = connessione.execute(
-            "SELECT id FROM utenti WHERE username = 'admin_crud'"
-        ).fetchone()["id"]
-        # Inserisce permesso pagina.
-        connessione.execute(
-            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (?, ?)",
+        id_admin = cursore.fetchone()["id"]
+        cursore.execute(
+            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)",
             (id_admin, "AMMINISTRAZIONE"),
         )
-        # Commit delle modifiche.
         connessione.commit()
 
-    # Simula sessione autenticata.
     with cliente.session_transaction() as sessione:
         sessione["id_utente"] = id_admin
         sessione["username"] = "admin_crud"
-        sessione["is_admin"] = 1
+        sessione["is_admin"] = True
 
-    # Ritorna id admin per eventuali controlli.
     return id_admin
 
 
 def test_crud_prodotti(cliente):
-    # Prepara contesto admin.
     imposta_admin(cliente)
 
-    # Crea un prodotto via API.
     payload_aggiunta = {
         "nome": "Nuovo Piatto",
         "categoria_dashboard": "Cucina",
@@ -49,17 +41,15 @@ def test_crud_prodotti(cliente):
     risposta = cliente.post("/api/aggiungi_prodotto", json=payload_aggiunta)
     assert risposta.status_code == 200
 
-    # Recupera id prodotto creato e verifica campi principali.
     with ottieni_db() as connessione:
-        prodotto = connessione.execute(
-            "SELECT * FROM prodotti WHERE nome = 'Nuovo Piatto'"
-        ).fetchone()
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM prodotti WHERE nome = 'Nuovo Piatto'")
+        prodotto = cursore.fetchone()
         assert prodotto is not None
         id_prodotto = prodotto["id"]
         assert prodotto["quantita"] == 10
-        assert prodotto["disponibile"] == 1
+        assert prodotto["disponibile"] == True
 
-    # Modifica il prodotto via API.
     payload_modifica = {
         "id": id_prodotto,
         "nome": "Piatto Modificato",
@@ -70,68 +60,59 @@ def test_crud_prodotti(cliente):
     risposta = cliente.post("/api/modifica_prodotto", json=payload_modifica)
     assert risposta.status_code == 200
 
-    # Verifica modifica persistita.
     with ottieni_db() as connessione:
-        prodotto = connessione.execute(
-            "SELECT * FROM prodotti WHERE id = ?",
-            (id_prodotto,),
-        ).fetchone()
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM prodotti WHERE id = %s", (id_prodotto,))
+        prodotto = cursore.fetchone()
         assert prodotto["nome"] == "Piatto Modificato"
         assert prodotto["prezzo"] == 15.0
         assert prodotto["quantita"] == 5
 
-    # Rifornisce il prodotto via API.
     payload_rifornimento = {"id": id_prodotto, "quantita": 20}
     risposta = cliente.post("/api/rifornisci_prodotto", json=payload_rifornimento)
     assert risposta.status_code == 200
 
-    # Verifica quantità aggiornata.
     with ottieni_db() as connessione:
-        quantita = connessione.execute(
-            "SELECT quantita FROM prodotti WHERE id = ?",
-            (id_prodotto,),
-        ).fetchone()["quantita"]
-        assert quantita == 25
+        cursore = connessione.cursor()
+        cursore.execute("SELECT quantita FROM prodotti WHERE id = %s", (id_prodotto,))
+        assert cursore.fetchone()["quantita"] == 25
 
-    # Elimina il prodotto via API.
     risposta = cliente.post("/api/elimina_prodotto", json={"id": id_prodotto})
     assert risposta.status_code == 200
 
-    # Verifica che il prodotto non esista più.
     with ottieni_db() as connessione:
-        prodotto = connessione.execute(
-            "SELECT * FROM prodotti WHERE id = ?",
-            (id_prodotto,),
-        ).fetchone()
-        assert prodotto is None
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM prodotti WHERE id = %s", (id_prodotto,))
+        assert cursore.fetchone() is None
 
 
 def test_crud_ordini(cliente):
-    # Prepara contesto admin.
     imposta_admin(cliente)
 
-    # Prepara dati ordine e prodotto correlato.
     with ottieni_db() as connessione:
-        connessione.execute(
-            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (300, 'Pizza', 10, 100, 0, 'Pizze', 'Cucina')"
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard)"
+            " VALUES (300, 'Pizza', 10, 100, 0, 'Pizze', 'Cucina')"
         )
-        connessione.execute(
-            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (300, 'Mario', 5, CURRENT_TIMESTAMP, 0, 0, 'Contanti')"
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento)"
+            " VALUES (300, 'Mario', 5, CURRENT_TIMESTAMP, FALSE, FALSE, 'Contanti')"
         )
-        connessione.execute(
-            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (300, 300, 2, 'In Attesa')"
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (300, 300, 2, 'In Attesa')"
         )
-        # Simula decremento magazzino pre-esistente.
-        connessione.execute("UPDATE prodotti SET quantita = 98 WHERE id = 300")
+        cursore.execute("UPDATE prodotti SET quantita = 98 WHERE id = 300")
         connessione.commit()
 
-    # Richiede dettagli ordine (HTML).
     risposta = cliente.get("/api/ordine/300/dettagli")
     assert risposta.status_code == 200
     assert b"Pizza" in risposta.data
     assert b"2" in risposta.data
 
-    # Modifica ordine via API.
     payload_modifica = {
         "id_ordine": 300,
         "nome_cliente": "Luigi",
@@ -142,119 +123,146 @@ def test_crud_ordini(cliente):
     risposta = cliente.post("/api/modifica_ordine", json=payload_modifica)
     assert risposta.status_code == 200
 
-    # Verifica aggiornamento ordine.
     with ottieni_db() as connessione:
-        ordine = connessione.execute("SELECT * FROM ordini WHERE id = 300").fetchone()
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM ordini WHERE id = 300")
+        ordine = cursore.fetchone()
         assert ordine["nome_cliente"] == "Luigi"
         assert ordine["numero_tavolo"] == 10
         assert ordine["metodo_pagamento"] == "Carta"
 
-    # Elimina ordine via API.
     risposta = cliente.post("/api/elimina_ordine", json={"id": 300})
     assert risposta.status_code == 200
 
-    # Verifica eliminazione ordine e ripristino magazzino.
     with ottieni_db() as connessione:
-        ordine = connessione.execute("SELECT * FROM ordini WHERE id = 300").fetchone()
-        assert ordine is None
-        quantita = connessione.execute(
-            "SELECT quantita FROM prodotti WHERE id = 300"
-        ).fetchone()["quantita"]
-        assert quantita == 100
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM ordini WHERE id = 300")
+        assert cursore.fetchone() is None
+        cursore.execute("SELECT quantita FROM prodotti WHERE id = 300")
+        assert cursore.fetchone()["quantita"] == 100
+
 
 def test_elimina_utente(cliente):
-    # Prepara contesto admin.
     imposta_admin(cliente)
 
-    # Inserisce utente da eliminare.
     with ottieni_db() as connessione:
-        connessione.execute(
-            "INSERT INTO utenti (username, password_hash, is_admin, attivo) VALUES (?, ?, ?, ?)",
-            ("to_delete", "hash", 0, 1),
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("to_delete", "hash", False, True),
         )
-        id_target = connessione.execute(
-            "SELECT id FROM utenti WHERE username = 'to_delete'"
-        ).fetchone()["id"]
+        id_target = cursore.fetchone()["id"]
         connessione.commit()
 
-    # Invoca endpoint di eliminazione utente.
     risposta = cliente.post("/api/elimina_utente", json={"id_utente": id_target})
     assert risposta.status_code == 200
 
-    # Verifica che l'utente sia stato rimosso.
     with ottieni_db() as connessione:
-        utente = connessione.execute(
-            "SELECT * FROM utenti WHERE id = ?",
-            (id_target,),
-        ).fetchone()
-        assert utente is None
+        cursore = connessione.cursor()
+        cursore.execute("SELECT * FROM utenti WHERE id = %s", (id_target,))
+        assert cursore.fetchone() is None
+
 
 def test_api_extra_amministrazione(cliente):
-    # Prepara contesto admin.
     imposta_admin(cliente)
 
-    # Prepara dati minimi per testare rotte extra.
     with ottieni_db() as connessione:
-        connessione.execute(
-            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (400, 'Test Extra', 5, 50, 0, 'Extra', 'Bar')"
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard)"
+            " VALUES (400, 'Test Extra', 5, 50, 0, 'Extra', 'Bar')"
         )
-        connessione.execute(
-            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (400, 'Extra Client', 9, CURRENT_TIMESTAMP, 0, 0, 'Carta')"
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento)"
+            " VALUES (400, 'Extra Client', 9, CURRENT_TIMESTAMP, FALSE, FALSE, 'Carta')"
         )
-        connessione.execute(
-            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (400, 400, 1, 'Pronto')"
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (400, 400, 1, 'Pronto')"
         )
         connessione.commit()
 
-    # Verifica rotta JSON ordine.
     risposta = cliente.get("/api/ordine/400")
     assert risposta.status_code == 200
     assert risposta.json["nome_cliente"] == "Extra Client"
     assert len(risposta.json["items"]) == 1
 
-    # Verifica rotta HTML righe ordini.
     risposta = cliente.get("/api/amministrazione/ordini_html")
     assert risposta.status_code == 200
     assert b"Extra Client" in risposta.data
 
-    # Verifica rotta HTML righe prodotti.
     risposta = cliente.get("/api/amministrazione/prodotti_html")
     assert risposta.status_code == 200
     assert b"Test Extra" in risposta.data
 
+
+def test_modifica_prodotto_quantita_zero_rende_non_disponibile(cliente):
+    imposta_admin(cliente)
+
+    risposta = cliente.post("/api/aggiungi_prodotto", json={
+        "nome": "Prodotto Esauribile",
+        "categoria_dashboard": "Bar",
+        "categoria_menu": "Bar",
+        "prezzo": 2.0,
+        "quantita": 10,
+        "disponibile": True,
+    })
+    assert risposta.status_code == 200
+
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute("SELECT id FROM prodotti WHERE nome = 'Prodotto Esauribile'")
+        id_prodotto = cursore.fetchone()["id"]
+
+    risposta = cliente.post("/api/modifica_prodotto", json={
+        "id": id_prodotto,
+        "nome": "Prodotto Esauribile",
+        "categoria_dashboard": "Bar",
+        "prezzo": 2.0,
+        "quantita": 0,
+    })
+    assert risposta.status_code == 200
+
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute("SELECT disponibile FROM prodotti WHERE id = %s", (id_prodotto,))
+        assert cursore.fetchone()["disponibile"] == False
+
+
 def test_ricalcola_statistiche_diretto(cliente):
-    # Import locale per coprire chiamata diretta.
     from app import ricalcola_statistiche
 
-    # Pulisce dati operativi e inserisce un ordine completato.
     with ottieni_db() as connessione:
-        connessione.execute("DELETE FROM ordini")
-        connessione.execute("DELETE FROM ordini_prodotti")
-
-        connessione.execute(
-            "INSERT INTO prodotti (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard) VALUES (500, 'Stat Prod', 10, 100, 0, 'Test', 'Cucina')"
+        cursore = connessione.cursor()
+        cursore.execute("DELETE FROM ordini_prodotti")
+        cursore.execute("DELETE FROM ordini")
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard)"
+            " VALUES (500, 'Stat Prod', 10, 100, 0, 'Test', 'Cucina')"
         )
-        connessione.execute(
-            "INSERT INTO ordini (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento) VALUES (500, 'Stat Client', 1, '2025-01-01 12:00:00', 1, 0, 'Contanti')"
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento)"
+            " VALUES (500, 'Stat Client', 1, '2025-01-01 12:00:00', TRUE, FALSE, 'Contanti')"
         )
-        connessione.execute(
-            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato) VALUES (500, 500, 2, 'Completato')"
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (500, 500, 2, 'Completato')"
         )
         connessione.commit()
 
-    # Disabilita emit SocketIO per isolare il test.
     original_emit = socketio.emit
     socketio.emit = lambda *args, **kwargs: None
-
-    # Esegue il ricalcolo e ripristina emit.
     try:
         ricalcola_statistiche()
     finally:
         socketio.emit = original_emit
 
-    # Verifica che la cache statistiche sia stata aggiornata.
     from services import costruisci_dati_statistiche
-
     stats = costruisci_dati_statistiche()
     assert stats["totali"]["ordini_totali"] >= 1
     assert stats["totali"]["totale_incasso"] >= 20

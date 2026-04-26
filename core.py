@@ -1,7 +1,6 @@
 import logging
 import os
 import secrets
-import sqlite3 as sq
 
 from dotenv import load_dotenv
 from flask import Flask
@@ -33,14 +32,6 @@ app.logger.propagate = True
 app.logger.setLevel(_logger_level)
 # Imposta una chiave di sessione stabile (da env) o generata al volo.
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
-
-with app.app_context():
-    try:
-        # Migliora concorrenza su SQLite quando ci sono più richieste.
-        with sq.connect("db.sqlite3", timeout=30) as conn:
-            conn.execute("PRAGMA journal_mode=WAL;")
-    except Exception:
-        app.logger.exception("Impossibile abilitare WAL mode")
 
 
 @app.errorhandler(403)

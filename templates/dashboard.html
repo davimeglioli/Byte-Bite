@@ -31,7 +31,7 @@
             <div>
               Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
             </div>
-            <div>{{ ordine['data_ordine'][11:16] }}</div>
+            <div>{{ ordine['data_ordine'].strftime('%H:%M') }}</div>
             <div>
               Persone:
               {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}
@@ -75,7 +75,7 @@
             <div>
               Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
             </div>
-            <div>{{ ordine['data_ordine'][11:16] }}</div>
+            <div>{{ ordine['data_ordine'].strftime('%H:%M') }}</div>
             <div>
               Persone:
               {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}

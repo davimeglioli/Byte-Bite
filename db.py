@@ -1,14 +1,30 @@
 import contextlib
-import sqlite3 as sq
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 
 @contextlib.contextmanager
 def ottieni_db():
-    """Stabilisce una connessione al database e la chiude automaticamente."""
-    # Crea una connessione per-request con timeout per ridurre i lock su SQLite.
-    connessione = sq.connect("db.sqlite3", timeout=30)
-    # Permette accesso ai campi delle righe per nome colonna.
-    connessione.row_factory = sq.Row
+    """Stabilisce una connessione al database PostgreSQL e la chiude automaticamente."""
+    # Legge le credenziali da variabili di ambiente
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "byte_bite")
+    db_user = os.getenv("DB_USER", "byte_bite_user")
+    db_password = os.getenv("DB_PASSWORD", "secure_password_change_me")
+    
+    # Crea una connessione a PostgreSQL
+    connessione = psycopg2.connect(
+        host=db_host,
+        port=db_port,
+        database=db_name,
+        user=db_user,
+        password=db_password,
+        connect_timeout=30
+    )
+    # Permette accesso ai campi delle righe per nome colonna (RealDictCursor)
+    connessione.cursor_factory = RealDictCursor
     try:
         # Espone la connessione al chiamante.
         yield connessione

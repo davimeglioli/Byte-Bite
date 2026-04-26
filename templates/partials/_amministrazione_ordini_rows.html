@@ -4,7 +4,7 @@
     <td>{{ ordine['nome_cliente'] }}</td>
     <td>{{ ordine['numero_tavolo'] if ordine['numero_tavolo'] else '-' }}</td>
     <td>{{ ordine['numero_persone'] if ordine['numero_persone'] else '-' }}</td>
-    <td>{{ ordine['data_ordine'] }}</td>
+    <td>{{ ordine['data_ordine'].strftime('%d/%m/%Y %H:%M') }}</td>
     <td>{{ ordine['metodo_pagamento'] }}</td>
     <td>{{ "%.2f"|format(ordine['totale']) }} €</td>
     <td>
