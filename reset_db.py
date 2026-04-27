@@ -5,9 +5,9 @@ from create_db import PRODOTTI_DEFAULT
 
 
 def reset_db():
-    conn = None
+    connessione = None
     try:
-        conn = psycopg2.connect(
+        connessione = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "byte_bite"),
@@ -15,24 +15,24 @@ def reset_db():
             password=os.getenv("DB_PASSWORD", "secure_password_change_me"),
             connect_timeout=30,
         )
-        cursor = conn.cursor()
+        cursore = connessione.cursor()
 
-        cursor.execute("TRUNCATE ordini, prodotti RESTART IDENTITY CASCADE")
+        cursore.execute("TRUNCATE ordini, prodotti RESTART IDENTITY CASCADE")
 
-        cursor.executemany(
+        cursore.executemany(
             "INSERT INTO prodotti"
             " (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti)"
             " VALUES (%s, %s, %s, %s, %s, %s, %s)",
             PRODOTTI_DEFAULT,
         )
 
-        conn.commit()
+        connessione.commit()
     except psycopg2.Error:
-        if conn:
-            conn.rollback()
+        if connessione:
+            connessione.rollback()
     finally:
-        if conn:
-            conn.close()
+        if connessione:
+            connessione.close()
 
 
 if __name__ == "__main__":

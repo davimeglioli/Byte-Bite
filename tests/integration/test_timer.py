@@ -24,15 +24,15 @@ def test_timer_completa_ordine_pronto(cliente):
 
     ordine_id = 200
     categoria = "Cucina"
-    timer_id = "test-timer-id"
+    id_timer = "test-timer-id"
     chiave_timer = (ordine_id, categoria)
 
-    timer_attivi[chiave_timer] = {"annulla": False, "id": timer_id}
+    timer_attivi[chiave_timer] = {"annulla": False, "id": id_timer}
 
     original_sleep = socketio.sleep
     socketio.sleep = lambda x: None
     try:
-        cambia_stato_automatico(ordine_id, categoria, timer_id)
+        cambia_stato_automatico(ordine_id, categoria, id_timer)
     finally:
         socketio.sleep = original_sleep
 
@@ -71,15 +71,15 @@ def test_timer_non_modifica_se_annullato(cliente):
 
     ordine_id = 201
     categoria = "Cucina"
-    timer_id = "test-cancel-id"
+    id_timer = "test-cancel-id"
     chiave_timer = (ordine_id, categoria)
 
-    timer_attivi[chiave_timer] = {"annulla": True, "id": timer_id}
+    timer_attivi[chiave_timer] = {"annulla": True, "id": id_timer}
 
     original_sleep = socketio.sleep
     socketio.sleep = lambda x: None
     try:
-        cambia_stato_automatico(ordine_id, categoria, timer_id)
+        cambia_stato_automatico(ordine_id, categoria, id_timer)
     finally:
         socketio.sleep = original_sleep
 

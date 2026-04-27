@@ -105,9 +105,9 @@ PRODOTTI_DEFAULT = [
 ]
 
 
-def _inserisci_dati_default_postgres(conn):
+def _inserisci_dati_default_postgres(connessione):
     """Inserisce utente admin e prodotti di default se non esistono già."""
-    cursore = conn.cursor()
+    cursore = connessione.cursor()
 
     # Utente admin (idempotente: salta se esiste già)
     cursore.execute("SELECT 1 FROM utenti WHERE username = 'admin'")
@@ -141,7 +141,7 @@ def _inserisci_dati_default_postgres(conn):
     else:
         print("   ℹ️  Prodotti già presenti, skip.")
 
-    conn.commit()
+    connessione.commit()
 
 
 def crea_schema_sqlite():
@@ -164,9 +164,9 @@ def crea_schema_postgres():
     """Crea lo schema in PostgreSQL (per Docker/produzione)."""
     print("📂 Creazione schema PostgreSQL")
 
-    conn_postgres = None
+    connessione_postgres = None
     try:
-        conn_postgres = psycopg2.connect(
+        connessione_postgres = psycopg2.connect(
             host=DB_HOST,
             port=DB_PORT,
             database=DB_NAME,
@@ -174,47 +174,47 @@ def crea_schema_postgres():
             password=DB_PASSWORD,
             connect_timeout=30,
         )
-        cursore = conn_postgres.cursor()
+        cursore = connessione_postgres.cursor()
 
         with open(PERCORSO_SCHEMA, "r") as file_schema:
             schema = file_schema.read()
 
-        queries = []
-        current_query = []
+        lista_query = []
+        query_corrente = []
 
         for riga in schema.split('\n'):
             if '--' in riga:
                 riga = riga[:riga.index('--')]
             riga = riga.strip()
             if riga:
-                current_query.append(riga)
+                query_corrente.append(riga)
             if ';' in riga:
-                query = ' '.join(current_query)
-                queries.append(query.replace(';', '').strip())
-                current_query = []
+                query = ' '.join(query_corrente)
+                lista_query.append(query.replace(';', '').strip())
+                query_corrente = []
 
-        for i, query in enumerate(queries):
+        for i, query in enumerate(lista_query):
             if query:
                 try:
                     cursore.execute(query)
-                    print(f"   ✅ Query {i+1}/{len(queries)} eseguita")
+                    print(f"   ✅ Query {i+1}/{len(lista_query)} eseguita")
                 except Exception as e:
                     print(f"   ⚠️  Query {i+1}: {e}")
                     print(f"      Query: {query[:100]}...")
 
-        conn_postgres.commit()
+        connessione_postgres.commit()
         print("✅ Schema PostgreSQL creato con successo!")
 
         print("📂 Inserimento dati di default")
-        _inserisci_dati_default_postgres(conn_postgres)
+        _inserisci_dati_default_postgres(connessione_postgres)
 
     except Exception as e:
         print(f"❌ Errore nella creazione dello schema PostgreSQL: {e}")
-        if conn_postgres:
-            conn_postgres.rollback()
+        if connessione_postgres:
+            connessione_postgres.rollback()
     finally:
-        if conn_postgres:
-            conn_postgres.close()
+        if connessione_postgres:
+            connessione_postgres.close()
 
 
 def crea_database():

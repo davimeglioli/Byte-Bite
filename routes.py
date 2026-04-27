@@ -95,13 +95,13 @@ def cassa():
         prodotti_per_categoria[categoria].append(prodotto)
 
     # Permette al frontend di evidenziare l'ultimo ordine creato.
-    last_order_id = request.args.get("last_order_id")
+    id_ultimo_ordine = request.args.get("id_ultimo_ordine")
 
     return render_template(
         "cassa.html",
         categorie=categorie,
         prodotti_per_categoria=prodotti_per_categoria,
-        last_order_id=last_order_id
+        id_ultimo_ordine=id_ultimo_ordine
     )
 
 
@@ -177,7 +177,7 @@ def aggiungi_ordine():
             emissione_sicura("aggiorna_dashboard", {"categoria": categoria}, stanza=categoria)
         socketio.start_background_task(ricalcola_statistiche)
 
-        return redirect(url_for("cassa") + f"?last_order_id={id_ordine}", code=303)
+        return redirect(url_for("cassa") + f"?id_ultimo_ordine={id_ordine}", code=303)
 
     except Exception as errore:
         # Log minimale e redirect verso la cassa con messaggio errore.
@@ -956,7 +956,7 @@ def ordine_dettagli(ordine_id):
     )
 
 
-def test_expansion():
+def test_espansione():
     # Vista di supporto per test manuali (non registrata come route).
     ordini = esegui_query(
         """

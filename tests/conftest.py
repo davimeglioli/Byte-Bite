@@ -24,7 +24,7 @@ URL_BASE_SERVER_TEST = f"http://127.0.0.1:{PORTA_SERVER_TEST}"
 
 def _connessione_test():
     """Crea una connessione psycopg2 al database usando le variabili d'ambiente."""
-    conn = psycopg2.connect(
+    connessione = psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
         database=os.getenv("DB_NAME", "byte_bite"),
@@ -32,64 +32,64 @@ def _connessione_test():
         password=os.getenv("DB_PASSWORD", "secure_password_change_me"),
         connect_timeout=30,
     )
-    conn.cursor_factory = RealDictCursor
-    return conn
+    connessione.cursor_factory = RealDictCursor
+    return connessione
 
 
-def _azzera_db(conn):
+def _azzera_db(connessione):
     """Svuota tutte le tabelle e riporta le sequenze a 1."""
-    with conn.cursor() as cur:
-        cur.execute(
+    with connessione.cursor() as cursore:
+        cursore.execute(
             "TRUNCATE ordini_prodotti, ordini, prodotti, permessi_pagine, utenti"
             " RESTART IDENTITY CASCADE"
         )
-    conn.commit()
+    connessione.commit()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def inizializza_schema():
     """Crea lo schema nel DB di test se non esiste ancora (idempotente)."""
-    conn = _connessione_test()
+    connessione = _connessione_test()
     try:
         schema = (radice_progetto / "db.sql").read_text()
-        with conn.cursor() as cur:
+        with connessione.cursor() as cursore:
             for stmt in schema.split(";"):
                 stmt = "\n".join(
                     riga for riga in stmt.splitlines()
                     if not riga.strip().startswith("--")
                 ).strip()
                 if stmt:
-                    cur.execute(stmt)
-        conn.commit()
+                    cursore.execute(stmt)
+        connessione.commit()
     finally:
-        conn.close()
+        connessione.close()
 
 
 @pytest.fixture(scope="session")
 def avvia_server_e2e():
     """Inizializza i dati E2E e avvia il server Flask in un thread daemon."""
-    conn = _connessione_test()
+    connessione = _connessione_test()
     try:
-        _azzera_db(conn)
+        _azzera_db(connessione)
         hash_admin = bcrypt.hashpw("admin".encode(), bcrypt.gensalt()).decode()
         hash_cassa = bcrypt.hashpw("cassa".encode(), bcrypt.gensalt()).decode()
-        with conn.cursor() as cur:
-            cur.execute(
+        with connessione.cursor() as cursore:
+            cursore.execute(
                 "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
                 " VALUES (%s, %s, %s, %s)",
                 ("admin", hash_admin, True, True),
             )
-            cur.execute(
+            cursore.execute(
                 "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
                 " VALUES (%s, %s, %s, %s) RETURNING id",
                 ("cassa", hash_cassa, False, True),
             )
-            id_cassa = cur.fetchone()["id"]
-            cur.execute(
+            id_cassa = cursore.fetchone()["id"]
+            cursore.execute(
                 "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)",
                 (id_cassa, "CASSA"),
             )
-            cur.executemany(
+            cursore.executemany(
                 "INSERT INTO prodotti"
                 " (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -98,9 +98,9 @@ def avvia_server_e2e():
                     ("Pasta Test", 10.0, "Primi", "Cucina", True, 50, 0),
                 ],
             )
-        conn.commit()
+        connessione.commit()
     finally:
-        conn.close()
+        connessione.close()
 
     def avvio_app():
         import logging
@@ -153,9 +153,9 @@ def cliente(monkeypatch):
     app.config["TESTING"] = True
 
     # Svuota il DB e azzera le sequenze per isolare ogni test.
-    conn = _connessione_test()
-    _azzera_db(conn)
-    conn.close()
+    connessione = _connessione_test()
+    _azzera_db(connessione)
+    connessione.close()
 
     # Azzera la cache statistiche in memoria per evitare dati residui.
     import services

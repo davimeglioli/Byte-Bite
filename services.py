@@ -194,7 +194,7 @@ def ricalcola_statistiche(notifica=True):
         emissione_sicura("aggiorna_dashboard", {})
 
 
-def cambia_stato_automatico(ordine_id, categoria, timer_id):
+def cambia_stato_automatico(ordine_id, categoria, id_timer):
     """Gestisce il passaggio automatico allo stato 'Completato' dopo un timeout."""
     chiave_timer = (ordine_id, categoria)
 
@@ -204,7 +204,7 @@ def cambia_stato_automatico(ordine_id, categoria, timer_id):
         socketio.sleep(1)
         if (
             chiave_timer not in timer_attivi
-            or timer_attivi[chiave_timer]["id"] != timer_id
+            or timer_attivi[chiave_timer]["id"] != id_timer
             or timer_attivi[chiave_timer]["annulla"]
         ):
             return

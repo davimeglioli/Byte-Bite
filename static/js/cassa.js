@@ -231,10 +231,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnChiudiConfermaOrdine = document.getElementById("btnChiudiConfermaOrdine");
 
     // L'id ultimo ordine viene passato dal backend come attributo sul body.
-    const lastOrderId = document.body.getAttribute("data-last-order-id");
+    const idUltimoOrdine = document.body.getAttribute("data-id-ultimo-ordine");
 
-    if (lastOrderId && modaleConfermaOrdine && numeroOrdineConfermato) {
-        numeroOrdineConfermato.textContent = lastOrderId;
+    if (idUltimoOrdine && modaleConfermaOrdine && numeroOrdineConfermato) {
+        numeroOrdineConfermato.textContent = idUltimoOrdine;
         modaleConfermaOrdine.classList.add("attivo");
     }
 
