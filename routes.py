@@ -106,6 +106,8 @@ def cassa():
 
 
 @app.route("/aggiungi_ordine/", methods=["POST"])
+@accesso_richiesto
+@richiedi_permesso("CASSA")
 def aggiungi_ordine():
     # Converte i campi del form nel formato atteso dal DB.
     asporto = request.form.get("isTakeaway") == "on"
@@ -189,13 +191,8 @@ def aggiungi_ordine():
 
 @app.route("/dashboard/<category>/")
 @accesso_richiesto
+@richiedi_permesso("DASHBOARD")
 def dashboard(category):
-    # Applica controllo permessi (admin o permesso dashboard).
-    pagina_permesso = "DASHBOARD"
-
-    # Richiama il decoratore come check esplicito (in caso di dashboard condivisa).
-    richiedi_permesso(pagina_permesso)(lambda: None)()
-
     # Carica gli ordini e mostra la pagina della categoria richiesta.
     ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
     return render_template(
@@ -207,6 +204,7 @@ def dashboard(category):
 
 
 @app.route("/dashboard/<category>/partial")
+@accesso_richiesto
 def dashboard_parziale(category):
     # Restituisce frammenti HTML per refresh parziale via AJAX.
     ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
@@ -232,6 +230,7 @@ def dashboard_parziale(category):
 
 
 @app.route("/cambia_stato/", methods=["POST"])
+@accesso_richiesto
 def cambia_stato():
     # Riceve ordine e categoria, quindi calcola il prossimo stato.
     dati = request.get_json()
@@ -246,6 +245,9 @@ def cambia_stato():
         WHERE ordine_id = %s AND prodotti.categoria_dashboard = %s
         LIMIT 1;
     """, (id_ordine, categoria), uno=True)
+
+    if not riga_stato:
+        return jsonify({"errore": "Ordine o categoria non trovata"}), 404
 
     stato_attuale = riga_stato["stato"]
 
@@ -797,7 +799,7 @@ def modifica_ordine():
         numero_persone = dati.get("numero_persone")
         metodo_pagamento = dati.get("metodo_pagamento")
 
-        # Converte stringhe vuote in NULL per SQLite.
+        # Converte stringhe vuote in NULL (campi opzionali).
         if numero_tavolo == "":
             numero_tavolo = None
         if numero_persone == "":
@@ -956,24 +958,9 @@ def ordine_dettagli(ordine_id):
     )
 
 
-def test_espansione():
-    # Vista di supporto per test manuali (non registrata come route).
-    ordini = esegui_query(
-        """
-        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
-               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
-        FROM ordini o
-        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
-        LEFT JOIN prodotti p ON op.prodotto_id = p.id
-        GROUP BY o.id
-        ORDER BY o.data_ordine DESC
-        LIMIT 5
-        """
-    )
-    return render_template("test_row_expansion.html", ordini=ordini)
-
 
 @app.route("/api/ordine/<int:id_ordine>")
+@accesso_richiesto
 def api_ordine(id_ordine):
     """Restituire intestazione e righe di un ordine in JSON.
 
@@ -1175,8 +1162,7 @@ def elimina_utente():
         return jsonify({"errore": "ID utente mancante"}), 400
 
     # Protegge da cancellazione dell'utente corrente.
-    if "user_id" in session and str(session["user_id"]) == str(id_utente):
-        # Protezione contro l'auto-eliminazione.
+    if str(session.get("id_utente")) == str(id_utente):
         return jsonify({"errore": "Non puoi eliminare il tuo stesso account"}), 400
 
     try:

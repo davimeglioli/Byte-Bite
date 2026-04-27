@@ -252,9 +252,3 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
-
-// ==================== Touch (legacy) ====================
-// Codice lasciato per compatibilità con comportamenti touch precedenti.
-let lastTouchEnd = 0;
-document.removeEventListener("touchend", function () {});
-document.removeEventListener("touchmove", function () {});

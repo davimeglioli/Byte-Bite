@@ -233,22 +233,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ==================== Filtri prodotti (linguette categorie) ====================
     const linguetteCategorie = document.querySelectorAll(".contenitore-menu .linguetta");
     if (linguetteCategorie.length > 0) {
-        // Filtra le righe prodotto in base alla linguetta cliccata.
-        function filtraProdottiDaTab(categoria) {
-            const righe = document.querySelectorAll(".tabella-dati tbody tr[data-categoria]");
-            righe.forEach((riga) => {
-                const categoriaRiga = riga.getAttribute("data-categoria");
-                if (categoria === "Tutte" || categoriaRiga === categoria) {
-                    riga.classList.remove("nascosto");
-                } else {
-                    riga.classList.add("nascosto");
-                }
-            });
-        }
-
         // Attiva la prima linguetta di default.
         linguetteCategorie[0].classList.add("attiva");
-        filtraProdottiDaTab(linguetteCategorie[0].getAttribute("data-categoria") || linguetteCategorie[0].textContent.trim());
+        filtraProdotti(linguetteCategorie[0].getAttribute("data-categoria") || linguetteCategorie[0].textContent.trim());
 
         // Al click, aggiorna la tab attiva e rifiltra la tabella.
         linguetteCategorie.forEach((linguetta) => {
@@ -257,7 +244,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 linguetta.classList.add("attiva");
 
                 const categoria = linguetta.getAttribute("data-categoria") || linguetta.textContent.trim();
-                filtraProdottiDaTab(categoria);
+                filtraProdotti(categoria);
             });
         });
     }

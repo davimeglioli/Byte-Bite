@@ -81,5 +81,6 @@ def test_rifornisci_prodotto_quantita_zero_restituisce_400(cliente):
 
 
 def test_api_ordine_inesistente_restituisce_404(cliente):
+    _imposta_admin(cliente)
     risposta = cliente.get("/api/ordine/99999")
     assert risposta.status_code == 404

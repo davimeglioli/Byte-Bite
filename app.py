@@ -11,7 +11,7 @@ from services import (
     ottieni_ordini_per_categoria,
     ricalcola_statistiche,
 )
-import routes  # noqa: F401  # Registra tutte le route tramite import.
+import routes
 
 # ==================== Avvio server ====================
 

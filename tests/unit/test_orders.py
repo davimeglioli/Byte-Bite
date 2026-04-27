@@ -4,7 +4,29 @@ from app import ottieni_db
 # ==================== Ordini (Cassa) ====================
 
 
+def _imposta_cassa(cliente):
+    """Crea un utente con permesso CASSA e imposta la sessione."""
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("cassa_test", "hash", False, True),
+        )
+        id_utente = cursore.fetchone()["id"]
+        cursore.execute(
+            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)",
+            (id_utente, "CASSA"),
+        )
+        connessione.commit()
+    with cliente.session_transaction() as sessione:
+        sessione["id_utente"] = id_utente
+        sessione["username"] = "cassa_test"
+    return id_utente
+
+
 def test_aggiungi_ordine_con_prodotti_aggiorna_magazzino(cliente, monkeypatch):
+    _imposta_cassa(cliente)
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
         cursore.execute(
@@ -54,6 +76,7 @@ def test_aggiungi_ordine_con_prodotti_aggiorna_magazzino(cliente, monkeypatch):
 
 
 def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
+    _imposta_cassa(cliente)
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
         cursore.execute(
@@ -92,6 +115,7 @@ def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
 
 
 def test_ordine_asporto_ignora_tavolo(cliente, monkeypatch):
+    _imposta_cassa(cliente)
     monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
