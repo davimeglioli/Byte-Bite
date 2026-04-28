@@ -103,8 +103,6 @@ def avvia_server_e2e():
         connessione.close()
 
     def avvio_app():
-        import logging
-        logging.getLogger("werkzeug").setLevel(logging.ERROR)
         socketio.run(
             app,
             port=PORTA_SERVER_TEST,

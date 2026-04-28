@@ -19,8 +19,8 @@ def emissione_sicura(evento, dati, stanza=None):
         if stanza and stanza != "amministrazione" and evento == "aggiorna_dashboard":
             # Replica l'aggiornamento anche all'area amministrazione.
             socketio.emit(evento, dati, room="amministrazione")
-    except Exception as errore:
-        app.logger.warning("Errore durante emissione: %s", errore, exc_info=True)
+    except Exception:
+        pass
 
 
 @socketio.on("join")

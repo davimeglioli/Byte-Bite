@@ -182,8 +182,6 @@ def aggiungi_ordine():
         return redirect(url_for("cassa") + f"?id_ultimo_ordine={id_ordine}", code=303)
 
     except Exception as errore:
-        # Log minimale e redirect verso la cassa con messaggio errore.
-        app.logger.exception("Errore creazione ordine")
         return redirect(url_for("cassa") + f"?error={errore}", code=303)
 
 
@@ -612,23 +610,8 @@ def aggiungi_prodotto():
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN prodotto_aggiunto attore_id=%s attore=%s nome=%s cat_dash=%s cat_menu=%s prezzo=%s quantita=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Dati principali del prodotto creato.
-            nome,
-            categoria_dashboard,
-            categoria_menu,
-            prezzo,
-            quantita,
-        )
         return jsonify({"messaggio": "Prodotto aggiunto con successo"})
     except Exception:
-        # Errore generico per evitare leak di dettagli DB al client.
-        app.logger.exception("Errore aggiunta prodotto")
         return jsonify({"errore": "Errore durante l'aggiunta"}), 500
 
 
@@ -671,23 +654,8 @@ def modifica_prodotto():
         # Aggiorna statistiche dopo variazione stock.
         socketio.start_background_task(ricalcola_statistiche)
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN prodotto_modificato attore_id=%s attore=%s id=%s nome=%s cat_dash=%s prezzo=%s quantita=%s disponibile=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Dati principali del prodotto aggiornato.
-            dati.get("id"),
-            dati.get("nome"),
-            dati.get("categoria_dashboard"),
-            prezzo,
-            quantita,
-            disponibile,
-        )
         return jsonify({"messaggio": "Prodotto modificato con successo"})
     except Exception:
-        app.logger.exception("Errore modifica prodotto")
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
@@ -728,16 +696,6 @@ def rifornisci_prodotto():
 
     socketio.start_background_task(ricalcola_statistiche)
 
-    # Traccia in console l'azione amministrativa per audit e debugging.
-    app.logger.info(
-        "ADMIN prodotto_rifornito attore_id=%s attore=%s id=%s aggiunta_quantita=%s",
-        # Identifica l'utente che sta operando da amministrazione.
-        session.get("id_utente"),
-        session.get("user_cache_username") or session.get("username"),
-        # Prodotto rifornito e quantità aggiunta.
-        id_prodotto,
-        quantita,
-    )
     return jsonify({"messaggio": "Prodotto rifornito con successo"})
 
 
@@ -759,18 +717,8 @@ def elimina_prodotto():
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN prodotto_eliminato attore_id=%s attore=%s id=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Prodotto eliminato (id).
-            dati.get("id"),
-        )
         return jsonify({"messaggio": "Prodotto eliminato con successo"})
     except Exception:
-        app.logger.exception("Errore eliminazione prodotto")
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
@@ -819,23 +767,8 @@ def modifica_ordine():
         # Aggiorna statistiche dopo modifica ordine.
         socketio.start_background_task(ricalcola_statistiche)
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN ordine_modificato attore_id=%s attore=%s id_ordine=%s cliente=%s tavolo=%s persone=%s pagamento=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Metadati ordine aggiornati dall'interfaccia admin.
-            id_ordine,
-            nome_cliente,
-            numero_tavolo,
-            numero_persone,
-            metodo_pagamento,
-        )
-
         return jsonify({"messaggio": "Ordine aggiornato con successo"})
     except Exception:
-        app.logger.exception("Errore modifica ordine")
         return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
 
 
@@ -904,19 +837,8 @@ def elimina_ordine():
         # Aggiorna statistiche dopo eliminazione.
         socketio.start_background_task(ricalcola_statistiche)
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN ordine_eliminato attore_id=%s attore=%s id_ordine=%s righe=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Id ordine e numero righe ripristinate a magazzino.
-            id_ordine,
-            len(prodotti_ordine),
-        )
         return jsonify({"messaggio": "Ordine eliminato con successo"})
     except Exception:
-        app.logger.exception("Errore eliminazione ordine")
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
@@ -1059,22 +981,8 @@ def aggiungi_utente():
 
             connessione.commit()
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN utente_creato attore_id=%s attore=%s id_utente=%s username=%s is_admin=%s attivo=%s permessi=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Dati account creato e permessi assegnati.
-            id_utente,
-            username,
-            is_admin,
-            attivo,
-            permessi,
-        )
         return jsonify({"messaggio": "Utente creato con successo"})
     except Exception:
-        app.logger.exception("Errore aggiunta utente")
         return jsonify({"errore": "Errore durante la creazione"}), 500
 
 
@@ -1129,24 +1037,8 @@ def modifica_utente():
 
             connessione.commit()
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN utente_modificato attore_id=%s attore=%s id_utente=%s username=%s is_admin=%s attivo=%s permessi=%s password_aggiornata=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Dati account aggiornato e permessi assegnati.
-            id_utente,
-            username,
-            is_admin,
-            attivo,
-            permessi,
-            # Indica se la password è stata anche aggiornata.
-            bool(password),
-        )
         return jsonify({"messaggio": "Utente modificato con successo"})
     except Exception:
-        app.logger.exception("Errore modifica utente")
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
@@ -1180,18 +1072,8 @@ def elimina_utente():
 
             connessione.commit()
 
-        # Traccia in console l'azione amministrativa per audit e debugging.
-        app.logger.info(
-            "ADMIN utente_eliminato attore_id=%s attore=%s id_utente=%s",
-            # Identifica l'utente che sta operando da amministrazione.
-            session.get("id_utente"),
-            session.get("user_cache_username") or session.get("username"),
-            # Account eliminato (id).
-            id_utente,
-        )
         return jsonify({"messaggio": "Utente eliminato con successo"})
     except Exception:
-        app.logger.exception("Errore eliminazione utente")
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 

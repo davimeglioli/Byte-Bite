@@ -1,5 +1,3 @@
-import logging
-
 from app import (
     app,
     emissione_sicura,
@@ -51,7 +49,7 @@ def test_ottieni_utente_loggato_senza_sessione(cliente):
         assert ottieni_utente_loggato() is None
 
 
-def test_emissione_sicura_gestisce_eccezioni(cliente, caplog):
+def test_emissione_sicura_gestisce_eccezioni(cliente):
     original_emit = socketio.emit
 
     def mock_emit(*args, **kwargs):
@@ -59,8 +57,6 @@ def test_emissione_sicura_gestisce_eccezioni(cliente, caplog):
 
     socketio.emit = mock_emit
     try:
-        with caplog.at_level(logging.WARNING):
-            emissione_sicura("test_event", {})
-            assert "Errore durante emissione: Socket Error" in caplog.text
+        emissione_sicura("test_event", {})
     finally:
         socketio.emit = original_emit
