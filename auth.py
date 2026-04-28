@@ -1,8 +1,11 @@
+import logging
 from functools import wraps
 
-from flask import abort, redirect, session, url_for
+from flask import abort, redirect, request, session, url_for
 
 from db import esegui_query
+
+logger = logging.getLogger(__name__)
 
 
 def ottieni_utente_loggato():
@@ -48,6 +51,11 @@ def accesso_richiesto(f):
     def gestore(*args, **kwargs):
         # Se non loggato, rimanda alla pagina di accesso.
         if "id_utente" not in session:
+            logger.warning(
+                "Accesso non autenticato - URL: %s, IP: %s",
+                request.path,
+                request.remote_addr,
+            )
             return redirect(url_for("accesso"))
         # Se loggato, esegue la funzione originale.
         return f(*args, **kwargs)
@@ -63,6 +71,11 @@ def richiedi_permesso(pagina):
         def gestore(*args, **kwargs):
             # Garantisce che esista una sessione valida.
             if "id_utente" not in session:
+                logger.warning(
+                    "Accesso non autenticato a pagina protetta '%s' - IP: %s",
+                    pagina,
+                    request.remote_addr,
+                )
                 return redirect(url_for("accesso"))
 
             # Recupera l'utente (con cache sessione per ridurre query).
@@ -70,6 +83,11 @@ def richiedi_permesso(pagina):
 
             # Se l'utente è disattivo, svuota la sessione e forza il login.
             if not utente or utente["attivo"] != 1:
+                username = session.get("username", "sconosciuto")
+                logger.warning(
+                    "Account disattivato o non trovato - utente: '%s', sessione invalidata",
+                    username,
+                )
                 session.clear()
                 return redirect(url_for("accesso"))
 
@@ -92,6 +110,12 @@ def richiedi_permesso(pagina):
                 return f(*args, **kwargs)
 
             # In assenza di permesso, blocca l'accesso.
+            logger.warning(
+                "Permesso negato - utente: '%s' (ID: %s), pagina: '%s'",
+                utente["username"],
+                utente["id"],
+                pagina,
+            )
             abort(403)
 
         return gestore

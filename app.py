@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 
@@ -13,6 +14,8 @@ from services import (
 )
 import routes
 
+logger = logging.getLogger(__name__)
+
 # ==================== Avvio server ====================
 
 if __name__ == "__main__":
@@ -26,4 +29,5 @@ if __name__ == "__main__":
     finally:
         socket_udp.close()
     modalita_debug = os.getenv("DEBUG", "False").lower() == "true"
+    logger.info("Avvio server Byte-Bite - http://%s:8000 (debug=%s)", ip_locale, modalita_debug)
     socketio.run(app, host="0.0.0.0", port=8000, debug=modalita_debug)

@@ -1,10 +1,13 @@
 import copy
+import logging
 import threading
 
 from flask_socketio import join_room
 
 from core import app, socketio, timer_attivi
 from db import esegui_query
+
+logger = logging.getLogger(__name__)
 
 # Cache in-memory per statistiche amministrazione.
 _statistiche_cache = None
@@ -19,8 +22,8 @@ def emissione_sicura(evento, dati, stanza=None):
         if stanza and stanza != "amministrazione" and evento == "aggiorna_dashboard":
             # Replica l'aggiornamento anche all'area amministrazione.
             socketio.emit(evento, dati, room="amministrazione")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Errore durante l'emissione dell'evento SocketIO '%s' (stanza: %s): %s", evento, stanza, e)
 
 
 @socketio.on("join")
@@ -31,6 +34,7 @@ def gestisci_join(dati):
     if categoria:
         # Iscrive la connessione alla stanza (es. Bar, Cucina, Griglia).
         join_room(categoria)
+        logger.debug("Client iscritto alla stanza '%s'", categoria)
 
 
 def ottieni_ordini_per_categoria(categoria):
@@ -186,10 +190,14 @@ def _calcola_dati_statistiche_da_db():
 def ricalcola_statistiche(notifica=True):
     """Ricalcola le statistiche e aggiorna la cache in memoria."""
     global _statistiche_cache
+    logger.debug("Ricalcolo statistiche avviato")
     nuovi_dati = _calcola_dati_statistiche_da_db()
     with _statistiche_lock:
         # Salva una copia isolata per evitare mutazioni accidentali dal chiamante.
         _statistiche_cache = copy.deepcopy(nuovi_dati)
+    logger.debug("Statistiche ricalcolate - ordini totali: %s, incasso: %.2f EUR",
+                 nuovi_dati["totali"]["ordini_totali"],
+                 nuovi_dati["totali"]["totale_incasso"])
     if notifica:
         emissione_sicura("aggiorna_dashboard", {})
 
@@ -207,10 +215,12 @@ def cambia_stato_automatico(ordine_id, categoria, id_timer):
             or timer_attivi[chiave_timer]["id"] != id_timer
             or timer_attivi[chiave_timer]["annulla"]
         ):
+            logger.debug("Timer annullato per ordine #%s [%s]", ordine_id, categoria)
             return
 
     # Ricontrolla lo stato del timer prima di aggiornare il DB.
     if chiave_timer not in timer_attivi or timer_attivi[chiave_timer]["annulla"]:
+        logger.debug("Timer annullato prima del completamento per ordine #%s [%s]", ordine_id, categoria)
         return
 
     # Forza lo stato "Completato" per tutti i prodotti della categoria.
@@ -238,6 +248,8 @@ def cambia_stato_automatico(ordine_id, categoria, id_timer):
         (residui == 0, ordine_id),
         commit=True,
     )
+
+    logger.info("Completamento automatico ordine #%s [%s] - residui non completati: %s", ordine_id, categoria, residui)
 
     # Rimuove il timer e notifica la dashboard interessata.
     timer_attivi.pop(chiave_timer, None)

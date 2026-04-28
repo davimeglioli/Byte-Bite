@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -26,6 +27,8 @@ from services import (
     ricalcola_statistiche,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # ==================== Route: autenticazione ====================
 
@@ -44,19 +47,25 @@ def accesso():
 
         if not utente:
             # Risposta generica per non rivelare quale campo è sbagliato.
+            logger.warning("Tentativo di login con username inesistente: '%s' (IP: %s)", username, request.remote_addr)
             return render_template("login.html", error="Username o password errata")
 
         if utente["attivo"] != 1:
             # Blocca account disattivati a livello amministrativo.
+            logger.warning("Login negato - account disattivato: '%s' (IP: %s)", username, request.remote_addr)
             return render_template("login.html", error="Account disattivato")
 
         # Verifica la password con hash bcrypt.
         if not bcrypt.checkpw(password, utente["password_hash"].encode()):
+            logger.warning("Login fallito - password errata per utente: '%s' (IP: %s)", username, request.remote_addr)
             return render_template("login.html", error="Username o password errata")
 
         # Salva i dati minimi in sessione.
         session["id_utente"] = utente["id"]
         session["username"] = utente["username"]
+
+        logger.info("Login riuscito - utente: '%s' (ID: %s, admin: %s, IP: %s)",
+                    utente["username"], utente["id"], bool(utente["is_admin"]), request.remote_addr)
 
         # Redirect verso la home dopo login.
         return redirect(url_for("home"))
@@ -131,6 +140,7 @@ def aggiungi_ordine():
 
     if not prodotti:
         # Evita la creazione di ordini senza righe.
+        logger.warning("Tentativo di creare ordine senza prodotti - utente: '%s'", session.get("username"))
         return redirect(url_for("cassa") + "?error=Nessun prodotto selezionato", code=303)
 
     try:
@@ -155,7 +165,10 @@ def aggiungi_ordine():
 
                 if cursore.rowcount == 0:
                     # Se non aggiorna righe, lo stock non basta: abort della transazione.
-                    raise Exception(f"Prodotto {prodotto.get('nome', 'Sconosciuto')} esaurito o insufficiente.")
+                    nome_prodotto = prodotto.get("nome", "Sconosciuto")
+                    logger.warning("Stock insufficiente per prodotto '%s' (ID: %s) - ordine annullato",
+                                   nome_prodotto, prodotto.get("id"))
+                    raise Exception(f"Prodotto {nome_prodotto} esaurito o insufficiente.")
 
                 # Registra la riga ordine-prodotti con stato iniziale.
                 cursore.execute("""
@@ -174,6 +187,9 @@ def aggiungi_ordine():
             # Conferma atomica: o tutto scritto o nulla.
             connessione.commit()
 
+        logger.info("Nuovo ordine #%s creato - cliente: '%s', prodotti: %s, asporto: %s, pagamento: %s, utente: '%s'",
+                    id_ordine, nome_cliente, len(prodotti), asporto, metodo_pagamento, session.get("username"))
+
         # Notifica le dashboard e aggiorna le statistiche in background.
         for categoria in categorie_dashboard:
             emissione_sicura("aggiorna_dashboard", {"categoria": categoria}, stanza=categoria)
@@ -182,6 +198,7 @@ def aggiungi_ordine():
         return redirect(url_for("cassa") + f"?id_ultimo_ordine={id_ordine}", code=303)
 
     except Exception as errore:
+        logger.error("Errore durante la creazione dell'ordine - utente: '%s': %s", session.get("username"), errore)
         return redirect(url_for("cassa") + f"?error={errore}", code=303)
 
 
@@ -245,6 +262,7 @@ def cambia_stato():
     """, (id_ordine, categoria), uno=True)
 
     if not riga_stato:
+        logger.warning("Cambio stato fallito - ordine #%s o categoria '%s' non trovata", id_ordine, categoria)
         return jsonify({"errore": "Ordine o categoria non trovata"}), 404
 
     stato_attuale = riga_stato["stato"]
@@ -255,6 +273,7 @@ def cambia_stato():
     chiave_timer = (id_ordine, categoria)
 
     if stato_attuale == "Completato":
+        logger.warning("Cambio stato rifiutato - ordine #%s [%s] già completato", id_ordine, categoria)
         return jsonify({"errore": "Ordine già completato"}), 400
 
     if stato_attuale == "Pronto":
@@ -278,6 +297,8 @@ def cambia_stato():
             SELECT id FROM prodotti WHERE categoria_dashboard = %s
         );
     """, (nuovo_stato, id_ordine, categoria), commit=True)
+
+    logger.info("Stato ordine #%s [%s]: '%s' → '%s'", id_ordine, categoria, stato_attuale, nuovo_stato)
 
     # Aggiorna il flag completato dell'ordine in base ai residui.
     residui = esegui_query(
@@ -591,6 +612,7 @@ def aggiungi_prodotto():
 
         # Validazione minima dei campi obbligatori.
         if not nome or not categoria_dashboard or not categoria_menu:
+            logger.warning("Tentativo di aggiunta prodotto con dati mancanti - utente: '%s'", session.get("username"))
             return jsonify({"errore": "Dati mancanti"}), 400
 
         if quantita > 0:
@@ -607,11 +629,15 @@ def aggiungi_prodotto():
             commit=True,
         )
 
+        logger.info("Prodotto aggiunto: '%s' (€%.2f, categoria: %s/%s, quantita: %s) - utente: '%s'",
+                    nome, prezzo, categoria_menu, categoria_dashboard, quantita, session.get("username"))
+
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Prodotto aggiunto con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante l'aggiunta del prodotto - utente: '%s': %s", session.get("username"), e)
         return jsonify({"errore": "Errore durante l'aggiunta"}), 500
 
 
@@ -651,11 +677,17 @@ def modifica_prodotto():
             ),
             commit=True,
         )
+
+        logger.info("Prodotto #%s modificato: '%s' (€%.2f, quantita: %s) - utente: '%s'",
+                    dati["id"], dati["nome"], prezzo, quantita, session.get("username"))
+
         # Aggiorna statistiche dopo variazione stock.
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Prodotto modificato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante la modifica del prodotto #%s - utente: '%s': %s",
+                     dati.get("id"), session.get("username"), e)
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
@@ -678,6 +710,7 @@ def rifornisci_prodotto():
         return jsonify({"errore": "Quantità non valida"}), 400
 
     if not id_prodotto or quantita <= 0:
+        logger.warning("Rifornimento prodotto con dati non validi - utente: '%s'", session.get("username"))
         return jsonify({"errore": "Dati mancanti o non validi"}), 400
 
     # Aumenta lo stock.
@@ -693,6 +726,8 @@ def rifornisci_prodotto():
         (id_prodotto,),
         commit=True,
     )
+
+    logger.info("Prodotto #%s rifornito di %s unità - utente: '%s'", id_prodotto, quantita, session.get("username"))
 
     socketio.start_background_task(ricalcola_statistiche)
 
@@ -714,11 +749,16 @@ def elimina_prodotto():
     try:
         # Eliminazione diretta per id.
         esegui_query("DELETE FROM prodotti WHERE id = %s", (dati["id"],), commit=True)
+
+        logger.info("Prodotto #%s eliminato - utente: '%s'", dati["id"], session.get("username"))
+
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Prodotto eliminato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante l'eliminazione del prodotto #%s - utente: '%s': %s",
+                     dati.get("id"), session.get("username"), e)
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
@@ -764,11 +804,16 @@ def modifica_ordine():
             commit=True,
         )
 
+        logger.info("Ordine #%s aggiornato - cliente: '%s', utente: '%s'",
+                    id_ordine, nome_cliente, session.get("username"))
+
         # Aggiorna statistiche dopo modifica ordine.
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Ordine aggiornato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante l'aggiornamento dell'ordine #%s - utente: '%s': %s",
+                     id_ordine, session.get("username"), e)
         return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
 
 
@@ -834,11 +879,16 @@ def elimina_ordine():
             cursore.execute("DELETE FROM ordini WHERE id = %s", (id_ordine,))
             connessione.commit()
 
+        logger.info("Ordine #%s eliminato con ripristino magazzino - utente: '%s'",
+                    id_ordine, session.get("username"))
+
         # Aggiorna statistiche dopo eliminazione.
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Ordine eliminato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante l'eliminazione dell'ordine #%s - utente: '%s': %s",
+                     id_ordine, session.get("username"), e)
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
@@ -961,6 +1011,8 @@ def aggiungi_utente():
             # Evita duplicati username.
             cursore.execute("SELECT id FROM utenti WHERE username = %s", (username,))
             if cursore.fetchone():
+                logger.warning("Tentativo di creare utente con username già in uso: '%s' - operatore: '%s'",
+                               username, session.get("username"))
                 return jsonify({"errore": "Username già in uso"}), 400
 
             # Genera hash password (rounds bassi per ambienti limitati).
@@ -981,8 +1033,13 @@ def aggiungi_utente():
 
             connessione.commit()
 
+        logger.info("Nuovo utente creato: '%s' (ID: %s, admin: %s, permessi: %s) - operatore: '%s'",
+                    username, id_utente, is_admin, permessi, session.get("username"))
+
         return jsonify({"messaggio": "Utente creato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante la creazione dell'utente '%s' - operatore: '%s': %s",
+                     username, session.get("username"), e)
         return jsonify({"errore": "Errore durante la creazione"}), 500
 
 
@@ -1037,8 +1094,13 @@ def modifica_utente():
 
             connessione.commit()
 
+        logger.info("Utente #%s modificato: '%s' (admin: %s, attivo: %s) - operatore: '%s'",
+                    id_utente, username, is_admin, attivo, session.get("username"))
+
         return jsonify({"messaggio": "Utente modificato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante la modifica dell'utente #%s - operatore: '%s': %s",
+                     id_utente, session.get("username"), e)
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
@@ -1055,6 +1117,8 @@ def elimina_utente():
 
     # Protegge da cancellazione dell'utente corrente.
     if str(session.get("id_utente")) == str(id_utente):
+        logger.warning("Tentativo di eliminare il proprio account (ID: %s) - utente: '%s'",
+                       id_utente, session.get("username"))
         return jsonify({"errore": "Non puoi eliminare il tuo stesso account"}), 400
 
     try:
@@ -1062,9 +1126,14 @@ def elimina_utente():
             cursore = connessione.cursor()
 
             # Verifica che l'utente esista.
-            cursore.execute("SELECT id FROM utenti WHERE id = %s", (id_utente,))
-            if not cursore.fetchone():
+            cursore.execute("SELECT id, username FROM utenti WHERE id = %s", (id_utente,))
+            riga = cursore.fetchone()
+            if not riga:
+                logger.warning("Eliminazione utente fallita - ID #%s non trovato - operatore: '%s'",
+                               id_utente, session.get("username"))
                 return jsonify({"errore": "Utente non trovato"}), 404
+
+            username_eliminato = riga["username"]
 
             # Elimina permessi e poi utente.
             cursore.execute("DELETE FROM permessi_pagine WHERE utente_id = %s", (id_utente,))
@@ -1072,8 +1141,13 @@ def elimina_utente():
 
             connessione.commit()
 
+        logger.info("Utente #%s ('%s') eliminato - operatore: '%s'",
+                    id_utente, username_eliminato, session.get("username"))
+
         return jsonify({"messaggio": "Utente eliminato con successo"})
-    except Exception:
+    except Exception as e:
+        logger.error("Errore durante l'eliminazione dell'utente #%s - operatore: '%s': %s",
+                     id_utente, session.get("username"), e)
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
