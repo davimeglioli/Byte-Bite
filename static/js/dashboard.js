@@ -1,6 +1,15 @@
 // ==================== Dashboard ====================
 // Gestisce: socket realtime, cambio stato ordine e refresh parziale HTML.
 
+(function () {
+    const el = document.getElementById('orologio-live');
+    function aggiorna() {
+        el.textContent = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    }
+    aggiorna();
+    setInterval(aggiorna, 1000);
+})();
+
 // Connessione socket: usa solo websocket per ridurre latenza e fallback.
 const socket = io({
     transports: ["websocket"],

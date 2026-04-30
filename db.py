@@ -34,6 +34,9 @@ def ottieni_db():
     # Permette accesso ai campi delle righe per nome colonna (RealDictCursor)
     connessione.cursor_factory = RealDictCursor
     try:
+        with connessione.cursor() as cur:
+            cur.execute("SET TIME ZONE 'Europe/Rome'")
+        connessione.commit()
         # Espone la connessione al chiamante.
         yield connessione
     finally:
