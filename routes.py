@@ -16,7 +16,7 @@ from flask import (
 )
 from fpdf import FPDF, XPos, YPos
 
-from auth import accesso_richiesto, richiedi_permesso
+from auth import accesso_richiesto, ottieni_utente_loggato, richiedi_permesso
 from core import app, socketio, timer_attivi
 from db import esegui_query, ottieni_db
 from services import (
@@ -50,7 +50,7 @@ def accesso():
             logger.warning("Tentativo di login con username inesistente: '%s' (IP: %s)", username, request.remote_addr)
             return render_template("login.html", error="Username o password errata")
 
-        if utente["attivo"] != 1:
+        if not utente["attivo"]:
             # Blocca account disattivati a livello amministrativo.
             logger.warning("Login negato - account disattivato: '%s' (IP: %s)", username, request.remote_addr)
             return render_template("login.html", error="Account disattivato")
@@ -77,8 +77,16 @@ def accesso():
 
 @app.route("/")
 def home():
-    # Pagina iniziale.
-    return render_template("index.html")
+    utente = ottieni_utente_loggato()
+    return render_template("index.html", utente=utente)
+
+
+@app.route("/logout/")
+def logout():
+    username = session.get("username", "sconosciuto")
+    session.clear()
+    logger.info("Logout - utente: '%s'", username)
+    return redirect(url_for("accesso"))
 
 
 # ==================== Route: cassa ====================
@@ -141,7 +149,7 @@ def aggiungi_ordine():
     if not prodotti:
         # Evita la creazione di ordini senza righe.
         logger.warning("Tentativo di creare ordine senza prodotti - utente: '%s'", session.get("username"))
-        return redirect(url_for("cassa") + "?error=Nessun prodotto selezionato", code=303)
+        return redirect(url_for("cassa"), code=303)
 
     try:
         # Inserisce l'ordine e le righe prodotto in un'unica transazione.
@@ -199,7 +207,7 @@ def aggiungi_ordine():
 
     except Exception as errore:
         logger.error("Errore durante la creazione dell'ordine - utente: '%s': %s", session.get("username"), errore)
-        return redirect(url_for("cassa") + f"?error={errore}", code=303)
+        return redirect(url_for("cassa"), code=303)
 
 
 # ==================== Route: dashboard ====================
@@ -220,6 +228,7 @@ def dashboard(category):
 
 @app.route("/dashboard/<category>/partial")
 @accesso_richiesto
+@richiedi_permesso("DASHBOARD")
 def dashboard_parziale(category):
     # Restituisce frammenti HTML per refresh parziale via AJAX.
     ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
@@ -246,6 +255,7 @@ def dashboard_parziale(category):
 
 @app.route("/cambia_stato/", methods=["POST"])
 @accesso_richiesto
+@richiedi_permesso("DASHBOARD")
 def cambia_stato():
     # Riceve ordine e categoria, quindi calcola il prossimo stato.
     dati = request.get_json()
@@ -538,10 +548,10 @@ def esporta_statistiche():
             pdf.cell(0, 6, f"Data: {ordine['data_ordine']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.cell(0, 6, f"Cliente: {ordine['nome_cliente']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-            tipo = "Asporto" if ordine["asporto"] == 1 else "Tavolo"
+            tipo = "Asporto" if ordine["asporto"] else "Tavolo"
             tavolo = "-" if ordine["numero_tavolo"] is None else ordine["numero_tavolo"]
             persone = "-" if ordine["numero_persone"] is None else ordine["numero_persone"]
-            completato = "Si" if ordine["completato"] == 1 else "No"
+            completato = "Si" if ordine["completato"] else "No"
             # Riga compatta con metadati ordine.
             pdf.cell(
                 0,
@@ -592,13 +602,6 @@ def esporta_statistiche():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def aggiungi_prodotto():
-    """Creare un nuovo prodotto a catalogo.
-
-    Input: JSON con campi nome, categoria_dashboard, categoria_menu, prezzo, quantita, disponibile.
-    Output: JSON con esito; aggiorna statistiche.
-    Effetti: inserire riga in tabella prodotti; impostare disponibilità in base alla quantità.
-    """
-    # Crea un nuovo prodotto a catalogo (con logica disponibilità basata sulla quantità).
     dati = request.get_json()
 
     try:
@@ -645,13 +648,6 @@ def aggiungi_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def modifica_prodotto():
-    """Modificare i dati di un prodotto esistente.
-
-    Input: JSON con id, nome, categoria_dashboard, prezzo, quantita.
-    Output: JSON con esito; aggiorna statistiche.
-    Effetti: aggiornare stock e disponibilità coerentemente.
-    """
-    # Aggiorna i campi del prodotto e sincronizza la disponibilità.
     dati = request.get_json()
 
     try:
@@ -695,12 +691,6 @@ def modifica_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def rifornisci_prodotto():
-    """Rifornire lo stock di un prodotto.
-
-    Input: JSON con id e quantita (>0).
-    Output: JSON con esito; forza disponibilità se lo stock torna > 0.
-    """
-    # Incrementa lo stock di un prodotto e lo rende disponibile se necessario.
     dati = request.get_json()
     id_prodotto = dati.get("id")
     try:
@@ -738,12 +728,6 @@ def rifornisci_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def elimina_prodotto():
-    """Eliminare un prodotto dal catalogo.
-
-    Input: JSON con id.
-    Output: JSON con esito; aggiorna statistiche.
-    """
-    # Elimina un prodotto dal catalogo.
     dati = request.get_json()
 
     try:
@@ -768,12 +752,6 @@ def elimina_prodotto():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def modifica_ordine():
-    """Aggiornare i metadati di un ordine.
-
-    Input: JSON con id_ordine, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento.
-    Output: JSON con esito; aggiorna statistiche.
-    """
-    # Aggiorna i metadati dell'ordine (cliente, tavolo/persone, pagamento).
     dati = request.get_json()
     id_ordine = dati.get("id_ordine")
 
@@ -821,13 +799,6 @@ def modifica_ordine():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def elimina_ordine():
-    """Eliminare un ordine e ripristinare magazzino/venduti.
-
-    Input: JSON con id.
-    Output: JSON con esito; aggiorna statistiche.
-    Effetti: transazione di ripristino stock e rimozione righe collegate.
-    """
-    # Elimina un ordine ripristinando il magazzino e i venduti.
     dati = request.get_json()
     id_ordine = dati.get("id")
 
@@ -896,13 +867,6 @@ def elimina_ordine():
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def ordine_dettagli(ordine_id):
-    """Restituire HTML dettagli righe ordine e totale.
-
-    Input: parametro percorso ordine_id.
-    Output: frammento HTML per espansione riga in amministrazione.
-    """
-    # Ritorna un frammento HTML con dettaglio righe ordine e totale.
-    # Query unica che include subtotale per riga.
     dettagli = esegui_query(
         """
         SELECT
@@ -919,9 +883,7 @@ def ordine_dettagli(ordine_id):
         (ordine_id,),
     )
 
-    # Somma i subtotali calcolati dalla query.
     totale = sum(riga["subtotale"] for riga in dettagli)
-    # Render parziale usato dall'admin per espansione riga.
     return render_template(
         "partials/_ordine_dettagli.html",
         dettagli=dettagli,
@@ -930,17 +892,10 @@ def ordine_dettagli(ordine_id):
     )
 
 
-
 @app.route("/api/ordine/<int:id_ordine>")
 @accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
 def api_ordine(id_ordine):
-    """Restituire intestazione e righe di un ordine in JSON.
-
-    Input: parametro percorso id_ordine.
-    Output: JSON con metadati e lista articoli.
-    """
-    # Restituisce intestazione e righe dell'ordine in JSON.
-    # Prima: intestazione ordine (metadati).
     intestazione = esegui_query(
         """
         SELECT id, nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, data_ordine
@@ -951,10 +906,8 @@ def api_ordine(id_ordine):
         uno=True,
     )
     if not intestazione:
-        # Ordine inesistente.
         abort(404)
 
-    # Seconda: righe prodotti associate.
     righe_articoli = esegui_query(
         """
         SELECT p.nome AS nome, op.quantita AS quantita, p.prezzo AS prezzo
@@ -964,7 +917,6 @@ def api_ordine(id_ordine):
         """,
         (id_ordine,),
     )
-    # Converte le righe in una lista di dict semplici.
     articoli = [{"nome": riga["nome"], "quantita": riga["quantita"], "prezzo": riga["prezzo"]} for riga in righe_articoli]
     return jsonify(
         {

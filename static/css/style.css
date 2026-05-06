@@ -63,6 +63,25 @@ header p {
     color: white;
 }
 
+.tasto-logout {
+    color: white;
+    background: transparent;
+    border: 1px solid #FF006E;
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-decoration: none;
+    font-size: 14px;
+    font-family: "Inter", sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.tasto-logout:hover {
+    background: #FF006E;
+    color: white;
+}
+
 .orologio-header {
     position: absolute;
     left: 50%;

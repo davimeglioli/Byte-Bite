@@ -218,8 +218,12 @@ def cambia_stato_automatico(ordine_id, categoria, id_timer):
             logger.debug("Timer annullato per ordine #%s [%s]", ordine_id, categoria)
             return
 
-    # Ricontrolla lo stato del timer prima di aggiornare il DB.
-    if chiave_timer not in timer_attivi or timer_attivi[chiave_timer]["annulla"]:
+    # Ricontrolla stato + ID: un nuovo click su "Pronto" sostituisce il timer con uno nuovo.
+    if (
+        chiave_timer not in timer_attivi
+        or timer_attivi[chiave_timer]["annulla"]
+        or timer_attivi[chiave_timer]["id"] != id_timer
+    ):
         logger.debug("Timer annullato prima del completamento per ordine #%s [%s]", ordine_id, categoria)
         return
 

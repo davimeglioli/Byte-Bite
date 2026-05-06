@@ -24,75 +24,18 @@
     </header>
 
     <div class="griglia-ordini">
-      {% for ordine in ordini_non_completati %}
-        <div class="scheda-ordine" data-status="{{ ordine['stato'] }}" data-id="{{ ordine['id'] }}">
-          <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
-
-          <div class="info-ordine">
-            <div>
-              Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
-            </div>
-            <div>{{ ordine['data_ordine'].strftime('%H:%M') }}</div>
-            <div>
-              Persone:
-              {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}
-            </div>
-          </div>
-
-          <div class="divisore-ordine"></div>
-
-          <div class="lista-articoli-ordine">
-            {% for prodotto in ordine['prodotti'] %}
-              <div class="riga-articolo-ordine">
-                <span>{{ prodotto['nome'] }}</span>
-                <span class="etichetta-quantita">x{{ prodotto['quantita'] }}</span>
-              </div>
-            {% endfor %}
-          </div>
-
-          <div class="stato-ordine">
-            <button
-              class="tasto-azione-ordine"
-              data-status="{{ ordine['stato'] }}"
-              data-id="{{ ordine['id'] }}"
-              data-categoria="{{ category }}"
-              onclick="cambiaStato(this)"
-            >
-              {{ ordine['stato'] }}
-            </button>
-          </div>
-        </div>
-      {% endfor %}
+      {% with ordini=ordini_non_completati %}
+        {% include 'partials/_ordini.html' %}
+      {% endwith %}
     </div>
 
     <hr class="divisore-cruscotto" />
 
     <h2 class="titolo-completati">Ordini Completati</h2>
     <div class="griglia-ordini">
-      {% for ordine in ordini_completati %}
-        <div class="scheda-ordine completato">
-          <h2 class="titolo-ordine">{{ ordine['nome_cliente'] }}</h2>
-          <div class="info-ordine">
-            <div>
-              Tavolo: {{ ordine['numero_tavolo'] if ordine['numero_tavolo'] is not none else 'ASPORTO' }}
-            </div>
-            <div>{{ ordine['data_ordine'].strftime('%H:%M') }}</div>
-            <div>
-              Persone:
-              {{ ordine['numero_persone'] if ordine['numero_persone'] is not none else 'ASPORTO' }}
-            </div>
-          </div>
-          <div class="divisore-ordine-completato"></div>
-          <div class="lista-articoli-ordine">
-            {% for prodotto in ordine['prodotti'] %}
-              <div class="riga-articolo-ordine">
-                <span>{{ prodotto['nome'] }}</span>
-                <span class="etichetta-quantita">x{{ prodotto['quantita'] }}</span>
-              </div>
-            {% endfor %}
-          </div>
-        </div>
-      {% endfor %}
+      {% with ordini=ordini_completati, completati=True %}
+        {% include 'partials/_ordini.html' %}
+      {% endwith %}
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>

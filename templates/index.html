@@ -19,7 +19,11 @@
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" />
         <h2>Seleziona area</h2>
       </div>
-      <p></p>
+      {% if utente %}
+        <a href="{{ url_for('logout') }}" class="tasto-logout">Esci</a>
+      {% else %}
+        <p></p>
+      {% endif %}
     </header>
 
     <div class="contenitore-tasti-index">

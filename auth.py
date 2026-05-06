@@ -82,7 +82,7 @@ def richiedi_permesso(pagina):
             utente = ottieni_utente_loggato()
 
             # Se l'utente è disattivo, svuota la sessione e forza il login.
-            if not utente or utente["attivo"] != 1:
+            if not utente or not utente["attivo"]:
                 username = session.get("username", "sconosciuto")
                 logger.warning(
                     "Account disattivato o non trovato - utente: '%s', sessione invalidata",
@@ -92,7 +92,7 @@ def richiedi_permesso(pagina):
                 return redirect(url_for("accesso"))
 
             # L'amministratore ha accesso completo.
-            if utente["is_admin"] == 1:
+            if utente["is_admin"]:
                 return f(*args, **kwargs)
 
             # Verifica il permesso specifico per la pagina richiesta.
