@@ -30,6 +30,12 @@ from services import (
 logger = logging.getLogger(__name__)
 
 
+def _normalizza_permessi(permessi):
+    if not isinstance(permessi, list):
+        permessi = []
+    return list(dict.fromkeys(p.strip() for p in permessi if isinstance(p, str) and p.strip()))
+
+
 # ==================== Route: autenticazione ====================
 
 @app.route("/login/", methods=["GET", "POST"])
@@ -592,7 +598,7 @@ def esporta_statistiche():
 
     pdf_bytes = bytes(pdf.output())
     filename = f"statistiche_{generato_il.strftime('%Y%m%d_%H%M%S')}.pdf"
-    headers = {"Content-Disposition": f'attachment; filename=\"{filename}\"'}
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return Response(pdf_bytes, mimetype="application/pdf", headers=headers)
 
 
@@ -863,10 +869,10 @@ def elimina_ordine():
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
-@app.route("/api/ordine/<int:ordine_id>/dettagli")
+@app.route("/api/ordine/<int:id_ordine>/dettagli")
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def ordine_dettagli(ordine_id):
+def ordine_dettagli(id_ordine):
     dettagli = esegui_query(
         """
         SELECT
@@ -880,15 +886,15 @@ def ordine_dettagli(ordine_id):
         JOIN prodotti p ON op.prodotto_id = p.id
         WHERE op.ordine_id = %s
         """,
-        (ordine_id,),
+        (id_ordine,),
     )
 
-    totale = sum(riga["subtotale"] for riga in dettagli)
+    totale = sum((riga["subtotale"] or 0) for riga in dettagli)
     return render_template(
         "partials/_ordine_dettagli.html",
         dettagli=dettagli,
         totale=totale,
-        ordine_id=ordine_id,
+        ordine_id=id_ordine,
     )
 
 
@@ -950,11 +956,7 @@ def aggiungi_utente():
     if not username or not password:
         return jsonify({"errore": "Username e password obbligatori"}), 400
 
-    # Normalizza permessi: lista di stringhe uniche non vuote.
-    if not isinstance(permessi, list):
-        permessi = []
-    permessi = [p.strip() for p in permessi if isinstance(p, str) and p.strip()]
-    permessi = list(dict.fromkeys(permessi))
+    permessi = _normalizza_permessi(permessi)
 
     try:
         with ottieni_db() as connessione:
@@ -1014,11 +1016,7 @@ def modifica_utente():
         attivo = bool(dati.get("attivo"))
         permessi = dati.get("permessi", [])
 
-        # Normalizza permessi.
-        if not isinstance(permessi, list):
-            permessi = []
-        permessi = [p.strip() for p in permessi if isinstance(p, str) and p.strip()]
-        permessi = list(dict.fromkeys(permessi))
+        permessi = _normalizza_permessi(permessi)
 
         with ottieni_db() as connessione:
             cursore = connessione.cursor()

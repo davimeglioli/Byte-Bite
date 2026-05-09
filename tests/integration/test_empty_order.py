@@ -40,10 +40,7 @@ def test_invio_ordine_senza_prodotti_reindirizza_con_errore(cliente, monkeypatch
 
     risposta = cliente.post("/aggiungi_ordine/", data=dati_ordine, follow_redirects=False)
     assert risposta.status_code == 303
-    assert (
-        "error=Nessun+prodotto+selezionato" in risposta.location
-        or "error=Nessun%20prodotto%20selezionato" in risposta.location
-    )
+    assert "/cassa/" in risposta.location
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()

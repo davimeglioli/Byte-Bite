@@ -65,21 +65,23 @@ header p {
 
 .tasto-logout {
     color: white;
-    background: transparent;
-    border: 1px solid #FF006E;
-    border-radius: 8px;
-    padding: 8px 16px;
+    background: #FF006E;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
     text-decoration: none;
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 700;
     font-family: "Inter", sans-serif;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
     white-space: nowrap;
+    transition: transform .08s ease, box-shadow .12s ease;
+    box-shadow: 0 2px 6px rgba(255, 0, 110, 0.35);
 }
 
 .tasto-logout:hover {
-    background: #FF006E;
-    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(255, 0, 110, 0.45);
 }
 
 .orologio-header {

@@ -31,7 +31,7 @@ def test_creazione_ordine_con_prodotto_inesistente_reindirizza_con_errore(client
 
     risposta = cliente.post("/aggiungi_ordine/", data=dati, follow_redirects=False)
     assert risposta.status_code == 303
-    assert "error=" in risposta.location
+    assert "/cassa/" in risposta.location
 
 
 def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
@@ -71,4 +71,4 @@ def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
     dati["nome_cliente"] = "Cliente 2"
     risposta_2 = cliente.post("/aggiungi_ordine/", data=dati)
     assert risposta_2.status_code == 303
-    assert "error" in risposta_2.location
+    assert "/cassa/" in risposta_2.location

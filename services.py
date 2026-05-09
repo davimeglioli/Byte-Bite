@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 _statistiche_cache = None
 _statistiche_lock = threading.RLock()
 
+_TIMEOUT_AUTO_COMPLETAMENTO_SEC = 10
+
 
 def emissione_sicura(evento, dati, stanza=None):
     """Invia un messaggio SocketIO gestendo eventuali errori."""
@@ -207,7 +209,7 @@ def cambia_stato_automatico(ordine_id, categoria, id_timer):
     chiave_timer = (ordine_id, categoria)
 
     # Attende un breve timeout (con possibilità di annullamento).
-    for _ in range(10):
+    for _ in range(_TIMEOUT_AUTO_COMPLETAMENTO_SEC):
         # Sleep cooperativo per non bloccare l'event loop SocketIO.
         socketio.sleep(1)
         if (

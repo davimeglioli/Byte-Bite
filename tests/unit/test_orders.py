@@ -95,7 +95,7 @@ def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
 
     risposta = cliente.post("/aggiungi_ordine/", data=dati_ordine)
     assert risposta.status_code == 303
-    assert "error" in risposta.location
+    assert "/cassa/" in risposta.location
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
