@@ -29,7 +29,7 @@ def test_creazione_ordine_con_prodotto_inesistente_reindirizza_con_errore(client
         "metodo_pagamento": "Contanti",
     }
 
-    risposta = cliente.post("/aggiungi_ordine/", data=dati, follow_redirects=False)
+    risposta = cliente.post("/api/ordini/", data=dati, follow_redirects=False)
     assert risposta.status_code == 303
     assert "/cassa/" in risposta.location
 
@@ -64,11 +64,11 @@ def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
         "metodo_pagamento": "Contanti",
     }
 
-    risposta_1 = cliente.post("/aggiungi_ordine/", data=dati)
+    risposta_1 = cliente.post("/api/ordini/", data=dati)
     assert risposta_1.status_code == 303
     assert "error" not in risposta_1.location
 
     dati["nome_cliente"] = "Cliente 2"
-    risposta_2 = cliente.post("/aggiungi_ordine/", data=dati)
+    risposta_2 = cliente.post("/api/ordini/", data=dati)
     assert risposta_2.status_code == 303
     assert "/cassa/" in risposta_2.location

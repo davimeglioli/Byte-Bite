@@ -73,10 +73,10 @@ function cambiaStato(bottone) {
     }
 
     // Invia la richiesta al backend per confermare lo stato.
-    fetch("/cambia_stato/", {
-        method: "POST",
+    fetch(`/api/ordini/${ordine_id}/stato`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ordine_id, categoria }),
+        body: JSON.stringify({ categoria }),
     })
         .then((res) => res.json())
         .then((datiRisposta) => {

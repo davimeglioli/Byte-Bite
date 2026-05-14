@@ -212,24 +212,7 @@ function pianificaAggiornamento() {
     }, 300);
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    // Primo render: statistiche + grafici iniziali.
-    const statistiche = await caricaStatistiche();
-    aggiornaRecap(statistiche.totali);
-    inizializzaGrafici(statistiche);
-    iscrivitiStanze(statistiche.categorie);
-
-    // Realtime: ascolta gli eventi socket e pianifica un refresh debounced.
-    if (typeof io !== "undefined") {
-        socket = io();
-        socket.on("connect", () => {
-            iscrivitiStanze(statistiche.categorie);
-        });
-        socket.on("aggiorna_dashboard", () => {
-            pianificaAggiornamento();
-        });
-    }
-
+document.addEventListener("DOMContentLoaded", () => {
     // ==================== Filtri prodotti (linguette categorie) ====================
     const linguetteCategorie = document.querySelectorAll(".contenitore-menu .linguetta");
     if (linguetteCategorie.length > 0) {
@@ -289,10 +272,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const quantita = document.getElementById("quantitaInput").value;
 
         try {
-            const risposta = await fetch("/api/rifornisci_prodotto", {
-                method: "POST",
+            const risposta = await fetch(`/api/prodotti/${id}/quantita`, {
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: id, quantita: quantita }),
+                body: JSON.stringify({ quantita: quantita }),
             });
 
             if (!risposta.ok) {
@@ -381,8 +364,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     formModifica.addEventListener("submit", async (e) => {
         e.preventDefault();
 
+        const id = idProdottoModifica.value;
         const dati = {
-            id: idProdottoModifica.value,
             nome: nomeProdottoModifica.value,
             categoria_dashboard: categoriaDashboardModifica.value,
             prezzo: parseFloat(prezzoProdottoModifica.value),
@@ -391,8 +374,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
 
         try {
-            const risposta = await fetch("/api/modifica_prodotto", {
-                method: "POST",
+            const risposta = await fetch(`/api/prodotti/${id}`, {
+                method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(dati),
             });
@@ -443,10 +426,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!id) return;
 
         try {
-            const risposta = await fetch("/api/elimina_prodotto", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: id }),
+            const risposta = await fetch(`/api/prodotti/${id}`, {
+                method: "DELETE",
             });
 
             if (!risposta.ok) {
@@ -498,10 +479,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!id) return;
 
             try {
-                const risposta = await fetch("/api/elimina_ordine", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: id }),
+                const risposta = await fetch(`/api/ordini/${id}`, {
+                    method: "DELETE",
                 });
 
                 if (!risposta.ok) {
@@ -575,8 +554,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
 
             try {
-                const risposta = await fetch("/api/modifica_ordine", {
-                    method: "POST",
+                const risposta = await fetch(`/api/ordini/${idOrdineModifica.value}`, {
+                    method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(dati),
                 });
@@ -680,7 +659,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
 
             try {
-                const risposta = await fetch("/api/aggiungi_prodotto", {
+                const risposta = await fetch("/api/prodotti/", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(dati),
@@ -784,8 +763,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
 
             try {
-                const risposta = await fetch("/api/modifica_utente", {
-                    method: "POST",
+                const risposta = await fetch(`/api/utenti/${dati.id_utente}`, {
+                    method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(dati),
                 });
@@ -867,7 +846,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
 
             try {
-                const risposta = await fetch("/api/aggiungi_utente", {
+                const risposta = await fetch("/api/utenti/", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(dati),
@@ -928,10 +907,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!id) return;
 
             try {
-                const risposta = await fetch("/api/elimina_utente", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id_utente: id }),
+                const risposta = await fetch(`/api/utenti/${id}`, {
+                    method: "DELETE",
                 });
 
                 if (risposta.ok) {
@@ -948,4 +925,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.chiudiModaleEliminaUtente();
         });
     }
+
+    avviaDati();
 });
+
+async function avviaDati() {
+    // Primo render: statistiche + grafici iniziali.
+    const statistiche = await caricaStatistiche();
+    aggiornaRecap(statistiche.totali);
+    inizializzaGrafici(statistiche);
+    iscrivitiStanze(statistiche.categorie);
+
+    // Realtime: ascolta gli eventi socket e pianifica un refresh debounced.
+    if (typeof io !== "undefined") {
+        socket = io();
+        socket.on("connect", () => {
+            iscrivitiStanze(statistiche.categorie);
+        });
+        socket.on("aggiorna_dashboard", () => {
+            pianificaAggiornamento();
+        });
+    }
+}

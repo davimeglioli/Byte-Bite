@@ -41,7 +41,7 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         "metodo_pagamento": "Contanti",
         "prodotti": json.dumps([{"id": 10, "quantita": 2, "nome": "Carbonara"}]),
     }
-    risposta = cliente.post("/aggiungi_ordine/", data=dati_ordine, follow_redirects=True)
+    risposta = cliente.post("/api/ordini/", data=dati_ordine, follow_redirects=True)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -65,8 +65,8 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
     assert "Carbonara" in dati["html_non_completati"]
     assert "FlussoTest" in dati["html_non_completati"]
 
-    payload = {"ordine_id": id_ordine, "categoria": "Cucina"}
-    risposta = cliente.post("/cambia_stato/", json=payload)
+    payload = {"categoria": "Cucina"}
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
     assert risposta.status_code == 200
     assert risposta.get_json()["nuovo_stato"] == "In Preparazione"
 
@@ -78,13 +78,13 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         )
         assert cursore.fetchone()["stato"] == "In Preparazione"
 
-    risposta = cliente.post("/cambia_stato/", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
     assert risposta.get_json()["nuovo_stato"] == "Pronto"
 
-    risposta = cliente.post("/cambia_stato/", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
     assert risposta.get_json()["nuovo_stato"] == "In Preparazione"
 
-    risposta = cliente.post("/cambia_stato/", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
     assert risposta.get_json()["nuovo_stato"] == "Pronto"
 
     with ottieni_db() as connessione:

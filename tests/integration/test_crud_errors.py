@@ -31,7 +31,7 @@ def test_aggiungi_utente_username_duplicato_restituisce_400(cliente):
         connessione.commit()
 
     risposta = cliente.post(
-        "/api/aggiungi_utente",
+        "/api/utenti/",
         json={"username": "dup_user", "password": "pass", "is_admin": False, "attivo": True},
     )
     assert risposta.status_code == 400
@@ -41,31 +41,23 @@ def test_aggiungi_utente_username_duplicato_restituisce_400(cliente):
 def test_aggiungi_utente_senza_credenziali_restituisce_400(cliente):
     _imposta_admin(cliente)
     risposta = cliente.post(
-        "/api/aggiungi_utente",
+        "/api/utenti/",
         json={"is_admin": False, "attivo": True},  # mancano username e password
     )
     assert risposta.status_code == 400
 
 
-def test_modifica_ordine_senza_id_ordine_restituisce_400(cliente):
-    _imposta_admin(cliente)
-    risposta = cliente.post(
-        "/api/modifica_ordine",
-        json={"nome_cliente": "Fantasma"},  # manca id_ordine
-    )
-    assert risposta.status_code == 400
-
 
 def test_elimina_utente_inesistente_restituisce_404(cliente):
     _imposta_admin(cliente)
-    risposta = cliente.post("/api/elimina_utente", json={"id_utente": 99999})
+    risposta = cliente.delete("/api/utenti/99999")
     assert risposta.status_code == 404
 
 
 def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
     _imposta_admin(cliente)
     risposta = cliente.post(
-        "/api/aggiungi_prodotto",
+        "/api/prodotti/",
         json={"prezzo": 10, "quantita": 5},  # mancano nome e categorie
     )
     assert risposta.status_code == 400
@@ -73,9 +65,9 @@ def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
 
 def test_rifornisci_prodotto_quantita_zero_restituisce_400(cliente):
     _imposta_admin(cliente)
-    risposta = cliente.post(
-        "/api/rifornisci_prodotto",
-        json={"id": 1, "quantita": 0},  # quantita <= 0 non valida
+    risposta = cliente.patch(
+        "/api/prodotti/1/quantita",
+        json={"quantita": 0},  # quantita <= 0 non valida
     )
     assert risposta.status_code == 400
 

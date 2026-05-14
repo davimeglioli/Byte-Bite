@@ -38,7 +38,7 @@ def test_crud_prodotti(cliente):
         "quantita": 10,
         "disponibile": True,
     }
-    risposta = cliente.post("/api/aggiungi_prodotto", json=payload_aggiunta)
+    risposta = cliente.post("/api/prodotti/", json=payload_aggiunta)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -51,13 +51,12 @@ def test_crud_prodotti(cliente):
         assert prodotto["disponibile"] == True
 
     payload_modifica = {
-        "id": id_prodotto,
         "nome": "Piatto Modificato",
         "categoria_dashboard": "Cucina",
         "prezzo": 15.0,
         "quantita": 5,
     }
-    risposta = cliente.post("/api/modifica_prodotto", json=payload_modifica)
+    risposta = cliente.put(f"/api/prodotti/{id_prodotto}", json=payload_modifica)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -68,8 +67,8 @@ def test_crud_prodotti(cliente):
         assert prodotto["prezzo"] == 15.0
         assert prodotto["quantita"] == 5
 
-    payload_rifornimento = {"id": id_prodotto, "quantita": 20}
-    risposta = cliente.post("/api/rifornisci_prodotto", json=payload_rifornimento)
+    payload_rifornimento = {"quantita": 20}
+    risposta = cliente.patch(f"/api/prodotti/{id_prodotto}/quantita", json=payload_rifornimento)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -77,7 +76,7 @@ def test_crud_prodotti(cliente):
         cursore.execute("SELECT quantita FROM prodotti WHERE id = %s", (id_prodotto,))
         assert cursore.fetchone()["quantita"] == 25
 
-    risposta = cliente.post("/api/elimina_prodotto", json={"id": id_prodotto})
+    risposta = cliente.delete(f"/api/prodotti/{id_prodotto}")
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -120,7 +119,7 @@ def test_crud_ordini(cliente):
         "numero_persone": 4,
         "metodo_pagamento": "Carta",
     }
-    risposta = cliente.post("/api/modifica_ordine", json=payload_modifica)
+    risposta = cliente.put(f"/api/ordini/{payload_modifica['id_ordine']}", json=payload_modifica)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -131,7 +130,7 @@ def test_crud_ordini(cliente):
         assert ordine["numero_tavolo"] == 10
         assert ordine["metodo_pagamento"] == "Carta"
 
-    risposta = cliente.post("/api/elimina_ordine", json={"id": 300})
+    risposta = cliente.delete("/api/ordini/300")
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -155,7 +154,7 @@ def test_elimina_utente(cliente):
         id_target = cursore.fetchone()["id"]
         connessione.commit()
 
-    risposta = cliente.post("/api/elimina_utente", json={"id_utente": id_target})
+    risposta = cliente.delete(f"/api/utenti/{id_target}")
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -202,7 +201,7 @@ def test_api_extra_amministrazione(cliente):
 def test_modifica_prodotto_quantita_zero_rende_non_disponibile(cliente):
     imposta_admin(cliente)
 
-    risposta = cliente.post("/api/aggiungi_prodotto", json={
+    risposta = cliente.post("/api/prodotti/", json={
         "nome": "Prodotto Esauribile",
         "categoria_dashboard": "Bar",
         "categoria_menu": "Bar",
@@ -217,8 +216,7 @@ def test_modifica_prodotto_quantita_zero_rende_non_disponibile(cliente):
         cursore.execute("SELECT id FROM prodotti WHERE nome = 'Prodotto Esauribile'")
         id_prodotto = cursore.fetchone()["id"]
 
-    risposta = cliente.post("/api/modifica_prodotto", json={
-        "id": id_prodotto,
+    risposta = cliente.put(f"/api/prodotti/{id_prodotto}", json={
         "nome": "Prodotto Esauribile",
         "categoria_dashboard": "Bar",
         "prezzo": 2.0,

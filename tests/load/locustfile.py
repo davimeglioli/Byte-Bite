@@ -38,7 +38,7 @@ class UtenteCassa(HttpUser):
         }
 
         # Invia l'ordine.
-        self.client.post("/aggiungi_ordine/", data=dati)
+        self.client.post("/api/ordini/", data=dati)
 
 
 class UtenteDashboard(HttpUser):

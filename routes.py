@@ -128,7 +128,7 @@ def cassa():
     )
 
 
-@app.route("/aggiungi_ordine/", methods=["POST"])
+@app.route("/api/ordini/", methods=["POST"])
 @accesso_richiesto
 @richiedi_permesso("CASSA")
 def aggiungi_ordine():
@@ -259,13 +259,11 @@ def dashboard_parziale(category):
     })
 
 
-@app.route("/cambia_stato/", methods=["POST"])
+@app.route("/api/ordini/<int:id_ordine>/stato", methods=["PATCH"])
 @accesso_richiesto
 @richiedi_permesso("DASHBOARD")
-def cambia_stato():
-    # Riceve ordine e categoria, quindi calcola il prossimo stato.
+def cambia_stato(id_ordine):
     dati = request.get_json()
-    id_ordine = dati.get("ordine_id")
     categoria = dati.get("categoria")
 
     # Legge lo stato attuale per la categoria.
@@ -604,7 +602,7 @@ def esporta_statistiche():
 
 # ==================== API: prodotti ====================
 
-@app.route("/api/aggiungi_prodotto", methods=["POST"])
+@app.route("/api/prodotti/", methods=["POST"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def aggiungi_prodotto():
@@ -650,10 +648,10 @@ def aggiungi_prodotto():
         return jsonify({"errore": "Errore durante l'aggiunta"}), 500
 
 
-@app.route("/api/modifica_prodotto", methods=["POST"])
+@app.route("/api/prodotti/<int:id>", methods=["PUT"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def modifica_prodotto():
+def modifica_prodotto(id):
     dati = request.get_json()
 
     try:
@@ -675,13 +673,13 @@ def modifica_prodotto():
                 prezzo,
                 quantita,
                 disponibile,
-                dati["id"],
+                id,
             ),
             commit=True,
         )
 
         logger.info("Prodotto #%s modificato: '%s' (€%.2f, quantita: %s) - utente: '%s'",
-                    dati["id"], dati["nome"], prezzo, quantita, session.get("username"))
+                    id, dati["nome"], prezzo, quantita, session.get("username"))
 
         # Aggiorna statistiche dopo variazione stock.
         socketio.start_background_task(ricalcola_statistiche)
@@ -689,16 +687,16 @@ def modifica_prodotto():
         return jsonify({"messaggio": "Prodotto modificato con successo"})
     except Exception as e:
         logger.error("Errore durante la modifica del prodotto #%s - utente: '%s': %s",
-                     dati.get("id"), session.get("username"), e)
+                     id, session.get("username"), e)
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
-@app.route("/api/rifornisci_prodotto", methods=["POST"])
+@app.route("/api/prodotti/<int:id>/quantita", methods=["PATCH"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def rifornisci_prodotto():
+def rifornisci_prodotto(id):
     dati = request.get_json()
-    id_prodotto = dati.get("id")
+    id_prodotto = id
     try:
         # Converte quantità in int e valida.
         quantita = int(dati.get("quantita"))
@@ -730,17 +728,15 @@ def rifornisci_prodotto():
     return jsonify({"messaggio": "Prodotto rifornito con successo"})
 
 
-@app.route("/api/elimina_prodotto", methods=["POST"])
+@app.route("/api/prodotti/<int:id>", methods=["DELETE"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def elimina_prodotto():
-    dati = request.get_json()
-
+def elimina_prodotto(id):
     try:
         # Eliminazione diretta per id.
-        esegui_query("DELETE FROM prodotti WHERE id = %s", (dati["id"],), commit=True)
+        esegui_query("DELETE FROM prodotti WHERE id = %s", (id,), commit=True)
 
-        logger.info("Prodotto #%s eliminato - utente: '%s'", dati["id"], session.get("username"))
+        logger.info("Prodotto #%s eliminato - utente: '%s'", id, session.get("username"))
 
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
@@ -748,21 +744,17 @@ def elimina_prodotto():
         return jsonify({"messaggio": "Prodotto eliminato con successo"})
     except Exception as e:
         logger.error("Errore durante l'eliminazione del prodotto #%s - utente: '%s': %s",
-                     dati.get("id"), session.get("username"), e)
+                     id, session.get("username"), e)
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
 # ==================== API: ordini ====================
 
-@app.route("/api/modifica_ordine", methods=["POST"])
+@app.route("/api/ordini/<int:id_ordine>", methods=["PUT"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def modifica_ordine():
+def modifica_ordine(id_ordine):
     dati = request.get_json()
-    id_ordine = dati.get("id_ordine")
-
-    if not id_ordine:
-        return jsonify({"errore": "ID ordine mancante"}), 400
 
     try:
         # Legge campi modificabili dall'interfaccia admin.
@@ -801,16 +793,10 @@ def modifica_ordine():
         return jsonify({"errore": "Errore durante l'aggiornamento"}), 500
 
 
-@app.route("/api/elimina_ordine", methods=["POST"])
+@app.route("/api/ordini/<int:id_ordine>", methods=["DELETE"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def elimina_ordine():
-    dati = request.get_json()
-    id_ordine = dati.get("id")
-
-    if not id_ordine:
-        return jsonify({"errore": "ID ordine mancante"}), 400
-
+def elimina_ordine(id_ordine):
     try:
         # Transazione esplicita: ripristino stock + delete righe + delete ordine.
         with ottieni_db() as connessione:
@@ -939,7 +925,7 @@ def api_ordine(id_ordine):
 
 # ==================== API: utenti ====================
 
-@app.route("/api/aggiungi_utente", methods=["POST"])
+@app.route("/api/utenti/", methods=["POST"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def aggiungi_utente():
@@ -997,16 +983,12 @@ def aggiungi_utente():
         return jsonify({"errore": "Errore durante la creazione"}), 500
 
 
-@app.route("/api/modifica_utente", methods=["POST"])
+@app.route("/api/utenti/<int:id_utente>", methods=["PUT"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def modifica_utente():
+def modifica_utente(id_utente):
     # Aggiorna dati utente e sostituisce la lista permessi.
     dati = request.get_json()
-    id_utente = dati.get("id_utente")
-
-    if not id_utente:
-        return jsonify({"errore": "ID utente mancante"}), 400
 
     try:
         # Legge campi aggiornabili.
@@ -1054,16 +1036,12 @@ def modifica_utente():
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
-@app.route("/api/elimina_utente", methods=["POST"])
+@app.route("/api/utenti/<int:id>", methods=["DELETE"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def elimina_utente():
+def elimina_utente(id):
     # Elimina un utente e i relativi permessi.
-    dati = request.get_json()
-    id_utente = dati.get("id_utente")
-
-    if not id_utente:
-        return jsonify({"errore": "ID utente mancante"}), 400
+    id_utente = id
 
     # Protegge da cancellazione dell'utente corrente.
     if str(session.get("id_utente")) == str(id_utente):

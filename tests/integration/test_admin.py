@@ -29,7 +29,7 @@ def test_admin_crea_utente(cliente):
         "ruolo": "staff",
         "permessi": ["CASSA", "CUCINA"],
     }
-    risposta = cliente.post("/api/aggiungi_utente", json=payload, follow_redirects=True)
+    risposta = cliente.post("/api/utenti/", json=payload, follow_redirects=True)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -81,7 +81,7 @@ def test_admin_attiva_e_disattiva_utente(cliente):
         "is_admin": 0,
         "permessi": [],
     }
-    risposta = cliente.post("/api/modifica_utente", json=payload)
+    risposta = cliente.put(f"/api/utenti/{payload['id_utente']}", json=payload)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -92,7 +92,7 @@ def test_admin_attiva_e_disattiva_utente(cliente):
         assert cursore.fetchone()["attivo"] == False
 
     payload["attivo"] = 1
-    cliente.post("/api/modifica_utente", json=payload)
+    cliente.put(f"/api/utenti/{payload['id_utente']}", json=payload)
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
         cursore.execute(
@@ -130,7 +130,7 @@ def test_admin_modifica_utente_rimuove_permessi_duplicati(cliente):
         "is_admin": 0,
         "permessi": ["CASSA", "CASSA", "DASHBOARD", ""],
     }
-    risposta = cliente.post("/api/modifica_utente", json=payload)
+    risposta = cliente.put(f"/api/utenti/{payload['id_utente']}", json=payload)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -178,7 +178,7 @@ def test_admin_modifica_utente_aggiorna_password(cliente):
         "attivo": True,
         "permessi": [],
     }
-    risposta = cliente.post("/api/modifica_utente", json=payload)
+    risposta = cliente.put(f"/api/utenti/{payload['id_utente']}", json=payload)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:

@@ -38,7 +38,7 @@ def test_invio_ordine_senza_prodotti_reindirizza_con_errore(cliente, monkeypatch
         "prodotti": json.dumps([]),
     }
 
-    risposta = cliente.post("/aggiungi_ordine/", data=dati_ordine, follow_redirects=False)
+    risposta = cliente.post("/api/ordini/", data=dati_ordine, follow_redirects=False)
     assert risposta.status_code == 303
     assert "/cassa/" in risposta.location
 
