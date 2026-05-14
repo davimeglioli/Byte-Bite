@@ -13,6 +13,11 @@ radice_progetto = Path(__file__).resolve().parents[1]
 if str(radice_progetto) not in sys.path:
     sys.path.insert(0, str(radice_progetto))
 
+# Forza il database di test PRIMA di importare qualsiasi modulo che apre connessioni.
+# Senza questa riga i test scrivono nel DB di produzione.
+DB_TEST_NAME = "byte_bite_test"
+os.environ["DB_NAME"] = DB_TEST_NAME
+
 import app as modulo_app
 from app import app, socketio
 
@@ -47,7 +52,26 @@ def _azzera_db(connessione):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def inizializza_schema():
+def crea_db_test():
+    """Crea il database di test se non esiste (idempotente)."""
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database="postgres",
+        user=os.getenv("DB_USER", "byte_bite_user"),
+        password=os.getenv("DB_PASSWORD", "secure_password_change_me"),
+        connect_timeout=30,
+    )
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_TEST_NAME,))
+        if not cur.fetchone():
+            cur.execute(f'CREATE DATABASE "{DB_TEST_NAME}"')
+    conn.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def inizializza_schema(crea_db_test):
     """Crea lo schema nel DB di test se non esiste ancora (idempotente)."""
     connessione = _connessione_test()
     try:
@@ -66,7 +90,7 @@ def inizializza_schema():
 
 
 @pytest.fixture(scope="session")
-def avvia_server_e2e():
+def avvia_server_e2e(inizializza_schema):
     """Inizializza i dati E2E e avvia il server Flask in un thread daemon."""
     connessione = _connessione_test()
     try:
