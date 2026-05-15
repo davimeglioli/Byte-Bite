@@ -213,38 +213,60 @@ document.addEventListener("DOMContentLoaded", () => {
     checkboxAsporto.addEventListener("change", aggiornaVisibilitaCampi);
     aggiornaVisibilitaCampi();
 
-    // ==================== Validazione invio ordine ====================
+    // ==================== Invio ordine via fetch ====================
     const formOrdine = document.querySelector(".riepilogo-carrello form");
+    const modaleConfermaOrdine = document.getElementById("modaleConfermaOrdine");
+    const btnChiudiConfermaOrdine = document.getElementById("btnChiudiConfermaOrdine");
+
     if (formOrdine) {
-        // Impedisce invio se il carrello è vuoto.
-        formOrdine.addEventListener("submit", (e) => {
+        formOrdine.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
             if (carrello.length === 0) {
-                e.preventDefault();
                 alert("Impossibile inviare l'ordine: nessun prodotto selezionato.");
+                return;
+            }
+
+            const asporto = checkboxAsporto.checked;
+            const dati = {
+                asporto: asporto,
+                nome_cliente: document.getElementById("nome-cliente").value,
+                numero_tavolo: asporto ? null : (parseInt(document.getElementById("numero-tavolo").value) || null),
+                numero_persone: asporto ? null : (parseInt(document.getElementById("numero-persone").value) || null),
+                metodo_pagamento: document.getElementById("metodo-pagamento").value,
+                prodotti: carrello.map((p) => ({ id: p.id, nome: p.nome, quantita: p.quantita })),
+            };
+
+            try {
+                const risposta = await fetch("/api/ordini/", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(dati),
+                });
+
+                if (risposta.status === 201) {
+                    // Reset form e carrello, poi mostra il modale di conferma.
+                    carrello.length = 0;
+                    formOrdine.reset();
+                    aggiornaRiepilogo();
+                    aggiornaVisibilitaCampi();
+                    if (modaleConfermaOrdine) modaleConfermaOrdine.classList.add("attivo");
+                } else {
+                    const errore = await risposta.json();
+                    alert("Errore: " + (errore.errore || "Impossibile inviare l'ordine."));
+                }
+            } catch (_) {
+                alert("Errore di connessione.");
             }
         });
     }
 
     // ==================== Modale conferma ordine ====================
-    const modaleConfermaOrdine = document.getElementById("modaleConfermaOrdine");
-    const numeroOrdineConfermato = document.getElementById("numeroOrdineConfermato");
-    const btnChiudiConfermaOrdine = document.getElementById("btnChiudiConfermaOrdine");
-
-    // L'id ultimo ordine viene passato dal backend come attributo sul body.
-    const idUltimoOrdine = document.body.getAttribute("data-id-ultimo-ordine");
-
-    if (idUltimoOrdine && modaleConfermaOrdine && numeroOrdineConfermato) {
-        numeroOrdineConfermato.textContent = idUltimoOrdine;
-        modaleConfermaOrdine.classList.add("attivo");
-    }
-
     if (btnChiudiConfermaOrdine && modaleConfermaOrdine) {
-        // Chiude con click sul bottone.
         btnChiudiConfermaOrdine.addEventListener("click", () => {
             modaleConfermaOrdine.classList.remove("attivo");
         });
 
-        // Chiude cliccando fuori dalla finestra.
         modaleConfermaOrdine.addEventListener("click", (e) => {
             if (e.target === modaleConfermaOrdine) {
                 modaleConfermaOrdine.classList.remove("attivo");

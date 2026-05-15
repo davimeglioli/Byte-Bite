@@ -1,4 +1,3 @@
-import json
 from app import ottieni_db
 
 # ==================== Flusso Ordine ====================
@@ -35,14 +34,15 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         sessione["username"] = "cassiere"
 
     dati_ordine = {
+        "asporto": False,
         "nome_cliente": "FlussoTest",
-        "numero_tavolo": "5",
-        "numero_persone": "2",
+        "numero_tavolo": 5,
+        "numero_persone": 2,
         "metodo_pagamento": "Contanti",
-        "prodotti": json.dumps([{"id": 10, "quantita": 2, "nome": "Carbonara"}]),
+        "prodotti": [{"id": 10, "quantita": 2, "nome": "Carbonara"}],
     }
-    risposta = cliente.post("/api/ordini/", data=dati_ordine, follow_redirects=True)
-    assert risposta.status_code == 200
+    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -67,8 +67,7 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
     assert "FlussoTest" in nomi_clienti
     assert "Carbonara" in nomi_prodotti
 
-    payload = {"categoria": "Cucina"}
-    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato/Cucina")
     assert risposta.status_code == 200
     assert risposta.get_json()["nuovo_stato"] == "In Preparazione"
 
@@ -80,13 +79,13 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         )
         assert cursore.fetchone()["stato"] == "In Preparazione"
 
-    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato/Cucina")
     assert risposta.get_json()["nuovo_stato"] == "Pronto"
 
-    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato/Cucina")
     assert risposta.get_json()["nuovo_stato"] == "In Preparazione"
 
-    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato", json=payload)
+    risposta = cliente.patch(f"/api/ordini/{id_ordine}/stato/Cucina")
     assert risposta.get_json()["nuovo_stato"] == "Pronto"
 
     with ottieni_db() as connessione:

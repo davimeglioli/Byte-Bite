@@ -29,8 +29,8 @@ def test_admin_crea_utente(cliente):
         "ruolo": "staff",
         "permessi": ["CASSA", "CUCINA"],
     }
-    risposta = cliente.post("/api/utenti/", json=payload, follow_redirects=True)
-    assert risposta.status_code == 200
+    risposta = cliente.post("/api/utenti/", json=payload)
+    assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()

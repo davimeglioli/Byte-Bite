@@ -123,6 +123,35 @@ def cassa():
     )
 
 
+@app.route("/api/ordini/", methods=["GET"])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def lista_ordini():
+    ordini = esegui_query("""
+        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
+               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
+        FROM ordini o
+        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
+        LEFT JOIN prodotti p ON op.prodotto_id = p.id
+        GROUP BY o.id
+        ORDER BY o.data_ordine DESC
+    """)
+    return jsonify({
+        "ordini": [
+            {
+                "id": o["id"],
+                "nome_cliente": o["nome_cliente"],
+                "numero_tavolo": o["numero_tavolo"],
+                "numero_persone": o["numero_persone"],
+                "data_ordine": o["data_ordine"].strftime("%d/%m/%Y %H:%M"),
+                "metodo_pagamento": o["metodo_pagamento"],
+                "totale": float(o["totale"]),
+            }
+            for o in ordini
+        ]
+    })
+
+
 @app.route("/api/ordini/", methods=["POST"])
 @accesso_richiesto
 @richiedi_permesso("CASSA")
@@ -582,6 +611,44 @@ def esporta_statistiche():
 
 # ==================== API: prodotti ====================
 
+@app.route("/api/prodotti/", methods=["GET"])
+@accesso_richiesto
+@richiedi_permesso("AMMINISTRAZIONE")
+def lista_prodotti():
+    prodotti = esegui_query("""
+        SELECT
+            id,
+            nome,
+            categoria_dashboard,
+            categoria_menu,
+            prezzo,
+            disponibile,
+            quantita,
+            venduti
+        FROM prodotti
+        ORDER BY MIN(id) OVER (PARTITION BY categoria_menu), id;
+    """)
+    categorie_db = esegui_query("SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)")
+    categorie = [riga["categoria_menu"] for riga in categorie_db]
+    prima_categoria = categorie[0] if categorie else None
+    return jsonify({
+        "prima_categoria": prima_categoria,
+        "prodotti": [
+            {
+                "id": p["id"],
+                "nome": p["nome"],
+                "categoria_dashboard": p["categoria_dashboard"],
+                "categoria_menu": p["categoria_menu"],
+                "prezzo": float(p["prezzo"]),
+                "disponibile": bool(p["disponibile"]),
+                "quantita": p["quantita"],
+                "venduti": p["venduti"],
+            }
+            for p in prodotti
+        ],
+    })
+
+
 @app.route("/api/prodotti/", methods=["POST"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
@@ -940,7 +1007,7 @@ def aggiungi_utente():
         logger.info("Nuovo utente creato: '%s' (ID: %s, admin: %s, permessi: %s) - operatore: '%s'",
                     username, id_utente, is_admin, permessi, session.get("username"))
 
-        return jsonify({"messaggio": "Utente creato con successo"})
+        return jsonify({"messaggio": "Utente creato con successo"}), 201
     except Exception as e:
         logger.error("Errore durante la creazione dell'utente '%s' - operatore: '%s': %s",
                      username, session.get("username"), e)
@@ -1000,12 +1067,11 @@ def modifica_utente(id_utente):
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
-@app.route("/api/utenti/<int:id>", methods=["DELETE"])
+@app.route("/api/utenti/<int:id_utente>", methods=["DELETE"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def elimina_utente(id):
+def elimina_utente(id_utente):
     # Elimina un utente e i relativi permessi.
-    id_utente = id
 
     # Protegge da cancellazione dell'utente corrente.
     if str(session.get("id_utente")) == str(id_utente):
@@ -1043,74 +1109,5 @@ def elimina_utente(id):
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
-# ==================== API: dati amministrazione ====================
-
-@app.route("/api/amministrazione/ordini")
-@accesso_richiesto
-@richiedi_permesso("AMMINISTRAZIONE")
-def api_amministrazione_ordini():
-    ordini = esegui_query("""
-        SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
-               COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
-        FROM ordini o
-        LEFT JOIN ordini_prodotti op ON o.id = op.ordine_id
-        LEFT JOIN prodotti p ON op.prodotto_id = p.id
-        GROUP BY o.id
-        ORDER BY o.data_ordine DESC
-    """)
-    return jsonify({
-        "ordini": [
-            {
-                "id": o["id"],
-                "nome_cliente": o["nome_cliente"],
-                "numero_tavolo": o["numero_tavolo"],
-                "numero_persone": o["numero_persone"],
-                "data_ordine": o["data_ordine"].strftime("%d/%m/%Y %H:%M"),
-                "metodo_pagamento": o["metodo_pagamento"],
-                "totale": float(o["totale"]),
-            }
-            for o in ordini
-        ]
-    })
-
-
-@app.route("/api/amministrazione/prodotti")
-@accesso_richiesto
-@richiedi_permesso("AMMINISTRAZIONE")
-def api_amministrazione_prodotti():
-    prodotti = esegui_query("""
-        SELECT
-            id,
-            nome,
-            categoria_dashboard,
-            categoria_menu,
-            prezzo,
-            disponibile,
-            quantita,
-            venduti
-        FROM prodotti
-        ORDER BY MIN(id) OVER (PARTITION BY categoria_menu), id;
-    """)
-
-    categorie_db = esegui_query("SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)")
-    categorie = [riga["categoria_menu"] for riga in categorie_db]
-    prima_categoria = categorie[0] if categorie else None
-
-    return jsonify({
-        "prima_categoria": prima_categoria,
-        "prodotti": [
-            {
-                "id": p["id"],
-                "nome": p["nome"],
-                "categoria_dashboard": p["categoria_dashboard"],
-                "categoria_menu": p["categoria_menu"],
-                "prezzo": float(p["prezzo"]),
-                "disponibile": bool(p["disponibile"]),
-                "quantita": p["quantita"],
-                "venduti": p["venduti"],
-            }
-            for p in prodotti
-        ],
-    })
 
 

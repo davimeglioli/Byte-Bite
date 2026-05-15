@@ -123,7 +123,7 @@ function iscrivitiStanze(_categorie) {
 
 // ==================== Tabelle e filtri ====================
 async function aggiornaTabellaOrdini() {
-    const risposta = await fetch("/api/amministrazione/ordini");
+    const risposta = await fetch("/api/ordini/");
     const dati = await risposta.json();
     const svgModifica = `<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
     const svgElimina = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
@@ -163,7 +163,7 @@ function filtraProdotti(categoria) {
 }
 
 async function aggiornaTabellaProdotti() {
-    const risposta = await fetch("/api/amministrazione/prodotti");
+    const risposta = await fetch("/api/prodotti/");
     const dati = await risposta.json();
     const svgRifornimento = `<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
     const svgModifica = `<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
@@ -218,7 +218,7 @@ async function toggleDettagli(bottone) {
     }
 
     try {
-        const risposta = await fetch(`/api/ordini/${idOrdine}/dettagli`);
+        const risposta = await fetch(`/api/ordini/${idOrdine}`);
         if (!risposta.ok) throw new Error("Errore nel caricamento dei dettagli");
         const dati = await risposta.json();
 
@@ -229,7 +229,7 @@ async function toggleDettagli(bottone) {
             "Completato": "etichetta-completato",
         }[stato] || "etichetta-base");
 
-        const righeDettagli = dati.dettagli.map((p) => `
+        const righeDettagli = dati.prodotti.map((p) => `
           <tr>
             <td>${escapaHtml(p.nome)}</td>
             <td>${escapaHtml(p.categoria_menu)}</td>
@@ -240,7 +240,7 @@ async function toggleDettagli(bottone) {
           </tr>`).join("");
 
         const html = `
-          <tr class="riga-dettagli" id="dettagli-${dati.ordine_id}">
+          <tr class="riga-dettagli" id="dettagli-${dati.id}">
             <td colspan="10" class="cella-dettagli-ordine">
               <div class="dettagli-ordine-contenitore">
                 <h4 class="dettagli-ordine-titolo">Prodotti dell'ordine:</h4>
@@ -352,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const quantita = document.getElementById("quantitaInput").value;
 
         try {
-            const risposta = await fetch(`/api/prodotti/${id}/quantita`, {
+            const risposta = await fetch(`/api/prodotti/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ quantita: quantita }),

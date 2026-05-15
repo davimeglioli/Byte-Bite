@@ -1,4 +1,3 @@
-import json
 import random
 
 from locust import HttpUser, between, task
@@ -27,18 +26,18 @@ class UtenteCassa(HttpUser):
             {"id": 2, "quantita": 2, "nome": "Spritz Campari"},
         ]
 
-        # Compone payload ordine con campi richiesti dalla rotta.
+        # Compone payload ordine in formato JSON.
         dati = {
+            "asporto": False,
             "nome_cliente": f"UtenteCarico_{random.randint(1, 10000)}",
-            "numero_tavolo": str(random.randint(1, 20)),
-            "numero_persone": str(random.randint(1, 4)),
+            "numero_tavolo": random.randint(1, 20),
+            "numero_persone": random.randint(1, 4),
             "metodo_pagamento": random.choice(["Contanti", "Carta"]),
-            "prodotti": json.dumps(prodotti),
-            "isTakeaway": "",
+            "prodotti": prodotti,
         }
 
         # Invia l'ordine.
-        self.client.post("/api/ordini/", data=dati)
+        self.client.post("/api/ordini/", json=dati)
 
 
 class UtenteDashboard(HttpUser):

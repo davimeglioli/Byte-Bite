@@ -1,4 +1,3 @@
-import json
 from app import ottieni_db
 
 # ==================== Ordini (Validazione) ====================
@@ -31,16 +30,16 @@ def test_invio_ordine_senza_prodotti_reindirizza_con_errore(cliente, monkeypatch
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     dati_ordine = {
+        "asporto": False,
         "nome_cliente": "TestEmpty",
-        "numero_tavolo": "1",
-        "numero_persone": "2",
+        "numero_tavolo": 1,
+        "numero_persone": 2,
         "metodo_pagamento": "Contanti",
-        "prodotti": json.dumps([]),
+        "prodotti": [],
     }
 
-    risposta = cliente.post("/api/ordini/", data=dati_ordine, follow_redirects=False)
-    assert risposta.status_code == 303
-    assert "/cassa/" in risposta.location
+    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    assert risposta.status_code == 400
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()

@@ -73,7 +73,7 @@ def test_esporta_statistiche_scarica_pdf(cliente, autenticazione):
         )
         connessione.commit()
 
-    risposta = cliente.get("/api/statistiche/export")
+    risposta = cliente.get("/api/statistiche/report")
     assert risposta.status_code == 200
     assert risposta.mimetype == "application/pdf"
     assert "attachment;" in risposta.headers.get("Content-Disposition", "")

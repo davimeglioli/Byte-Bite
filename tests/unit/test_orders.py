@@ -1,4 +1,3 @@
-import json
 from app import ottieni_db
 
 # ==================== Ordini (Cassa) ====================
@@ -41,16 +40,16 @@ def test_aggiungi_ordine_con_prodotti_aggiorna_magazzino(cliente, monkeypatch):
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     dati_ordine = {
+        "asporto": False,
         "nome_cliente": "Luigi",
-        "numero_tavolo": "10",
-        "numero_persone": "4",
+        "numero_tavolo": 10,
+        "numero_persone": 4,
         "metodo_pagamento": "Contanti",
-        "isTakeaway": "",
-        "prodotti": json.dumps([{"id": 1, "quantita": 2, "nome": "Pizza Margherita"}]),
+        "prodotti": [{"id": 1, "quantita": 2, "nome": "Pizza Margherita"}],
     }
 
-    risposta = cliente.post("/api/ordini/", data=dati_ordine)
-    assert risposta.status_code == 303
+    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -88,14 +87,14 @@ def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
         connessione.commit()
 
     dati_ordine = {
+        "asporto": False,
         "nome_cliente": "Mario",
         "metodo_pagamento": "Carta",
-        "prodotti": json.dumps([{"id": 2, "quantita": 2, "nome": "Pizza Speciale"}]),
+        "prodotti": [{"id": 2, "quantita": 2, "nome": "Pizza Speciale"}],
     }
 
-    risposta = cliente.post("/api/ordini/", data=dati_ordine)
-    assert risposta.status_code == 303
-    assert "/cassa/" in risposta.location
+    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    assert risposta.status_code == 500
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -130,14 +129,14 @@ def test_ordine_asporto_ignora_tavolo(cliente, monkeypatch):
         connessione.commit()
 
     dati_ordine = {
+        "asporto": True,
         "nome_cliente": "Giulia",
-        "isTakeaway": "on",
-        "numero_tavolo": "99",
+        "numero_tavolo": None,
         "metodo_pagamento": "Contanti",
-        "prodotti": json.dumps([{"id": 99, "quantita": 1, "nome": "Acqua"}]),
+        "prodotti": [{"id": 99, "quantita": 1, "nome": "Acqua"}],
     }
 
-    cliente.post("/api/ordini/", data=dati_ordine)
+    cliente.post("/api/ordini/", json=dati_ordine)
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()

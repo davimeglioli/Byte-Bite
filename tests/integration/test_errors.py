@@ -23,15 +23,15 @@ def test_creazione_ordine_con_prodotto_inesistente_reindirizza_con_errore(client
         sessione["username"] = "cassiere_err"
 
     dati = {
-        "prodotti": '[{"id": 99999, "quantita": 1}]',
+        "asporto": False,
+        "prodotti": [{"id": 99999, "quantita": 1, "nome": "Fantasma"}],
         "nome_cliente": "Test Error",
-        "numero_tavolo": "5",
+        "numero_tavolo": 5,
         "metodo_pagamento": "Contanti",
     }
 
-    risposta = cliente.post("/api/ordini/", data=dati, follow_redirects=False)
-    assert risposta.status_code == 303
-    assert "/cassa/" in risposta.location
+    risposta = cliente.post("/api/ordini/", json=dati)
+    assert risposta.status_code == 500
 
 
 def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
@@ -58,17 +58,16 @@ def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
         sessione["id_utente"] = id_utente
 
     dati = {
-        "prodotti": '[{"id": 99, "quantita": 1}]',
+        "asporto": False,
+        "prodotti": [{"id": 99, "quantita": 1, "nome": "Ultimo"}],
         "nome_cliente": "Cliente 1",
-        "numero_tavolo": "1",
+        "numero_tavolo": 1,
         "metodo_pagamento": "Contanti",
     }
 
-    risposta_1 = cliente.post("/api/ordini/", data=dati)
-    assert risposta_1.status_code == 303
-    assert "error" not in risposta_1.location
+    risposta_1 = cliente.post("/api/ordini/", json=dati)
+    assert risposta_1.status_code == 201
 
     dati["nome_cliente"] = "Cliente 2"
-    risposta_2 = cliente.post("/api/ordini/", data=dati)
-    assert risposta_2.status_code == 303
-    assert "/cassa/" in risposta_2.location
+    risposta_2 = cliente.post("/api/ordini/", json=dati)
+    assert risposta_2.status_code == 500

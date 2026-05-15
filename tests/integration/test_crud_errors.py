@@ -66,7 +66,7 @@ def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
 def test_rifornisci_prodotto_quantita_zero_restituisce_400(cliente):
     _imposta_admin(cliente)
     risposta = cliente.patch(
-        "/api/prodotti/1/quantita",
+        "/api/prodotti/1",
         json={"quantita": 0},  # quantita <= 0 non valida
     )
     assert risposta.status_code == 400
