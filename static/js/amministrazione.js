@@ -1,3 +1,12 @@
+// ==================== Utilità ====================
+function escapaHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
 // ==================== Stato pagina ====================
 let grafici = {
     categorie: null,
@@ -13,7 +22,7 @@ let aggiornamentoPianificato = false;
 // ==================== Statistiche e grafici ====================
 async function caricaStatistiche() {
     // Carica i dati aggregati necessari per grafici e riepiloghi.
-    const risposta = await fetch("/api/statistiche/");
+    const risposta = await fetch("/api/statistiche");
     return await risposta.json();
 }
 
@@ -114,10 +123,30 @@ function iscrivitiStanze(_categorie) {
 
 // ==================== Tabelle e filtri ====================
 async function aggiornaTabellaOrdini() {
-    // Ricarica solo le righe della tabella ordini (HTML parziale).
-    const risposta = await fetch("/api/amministrazione/ordini_html");
-    const html = await risposta.text();
-    document.querySelector(".tabella-dati tbody").innerHTML = html;
+    const risposta = await fetch("/api/amministrazione/ordini");
+    const dati = await risposta.json();
+    const svgModifica = `<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+    const svgElimina = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+    const righe = dati.ordini.map((o) => `
+      <tr class="riga-ordine" data-id="${o.id}">
+        <td>${o.id}</td>
+        <td>${escapaHtml(o.nome_cliente)}</td>
+        <td>${o.numero_tavolo ?? "-"}</td>
+        <td>${o.numero_persone ?? "-"}</td>
+        <td>${o.data_ordine}</td>
+        <td>${escapaHtml(o.metodo_pagamento)}</td>
+        <td>${o.totale.toFixed(2)} €</td>
+        <td>
+          <button class="bottone-modifica" onclick="apriModaleModificaOrdine(this)" aria-label="Modifica">${svgModifica}</button>
+          <button class="bottone-cancella" data-id="${o.id}" onclick="apriModaleEliminaOrdine(this)" aria-label="Elimina">${svgElimina}</button>
+        </td>
+        <td>
+          <button class="bottone-espandi" data-id="${o.id}" onclick="toggleDettagli(this)">
+            <span class="espandi"></span>
+          </button>
+        </td>
+      </tr>`).join("");
+    document.querySelector(".tabella-dati tbody").innerHTML = righe;
 }
 
 function filtraProdotti(categoria) {
@@ -134,22 +163,36 @@ function filtraProdotti(categoria) {
 }
 
 async function aggiornaTabellaProdotti() {
-    // Ricarica solo le righe della tabella prodotti (HTML parziale).
-    const risposta = await fetch("/api/amministrazione/prodotti_html");
-    const html = await risposta.text();
+    const risposta = await fetch("/api/amministrazione/prodotti");
+    const dati = await risposta.json();
+    const svgRifornimento = `<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    const svgModifica = `<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+    const svgElimina = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+    const righe = dati.prodotti.map((p) => `
+      <tr data-categoria="${escapaHtml(p.categoria_menu)}">
+        <td>${p.id}</td>
+        <td>${escapaHtml(p.nome)}</td>
+        <td>${escapaHtml(p.categoria_dashboard)}</td>
+        <td>${p.prezzo.toFixed(2)} €</td>
+        <td>${p.disponibile ? "Disponibile" : "Non disponibile"}</td>
+        <td>${p.quantita}</td>
+        <td>${p.venduti}</td>
+        <td>
+          <button class="bottone-rifornimento" onclick="apriModaleRifornimento('${p.id}', '${escapaHtml(p.nome)}')" aria-label="Rifornisci">${svgRifornimento}</button>
+          <button class="bottone-modifica" data-id="${p.id}" data-nome="${escapaHtml(p.nome)}" data-cat="${escapaHtml(p.categoria_dashboard)}" data-prezzo="${p.prezzo}" data-qta="${p.quantita}" data-disp="${p.disponibile ? 1 : 0}" onclick="apriModaleModifica(this)" aria-label="Modifica">${svgModifica}</button>
+          <button class="bottone-cancella" data-id="${p.id}" data-nome="${escapaHtml(p.nome)}" onclick="apriModaleElimina(this)" aria-label="Elimina">${svgElimina}</button>
+        </td>
+      </tr>`).join("");
 
     // La pagina contiene due tbody con la stessa classe: [0]=ordini, [1]=prodotti.
     const tbodyTabelle = document.querySelectorAll(".tabella-dati tbody");
     if (tbodyTabelle.length < 2) return;
-
-    tbodyTabelle[1].innerHTML = html;
+    tbodyTabelle[1].innerHTML = righe;
 
     // Riapplica il filtro della tab attiva dopo il refresh.
     const tabAttiva = document.querySelector(".contenitore-menu .linguetta.attiva");
     if (!tabAttiva) return;
-
-    const categoria = tabAttiva.getAttribute("data-categoria") || tabAttiva.textContent.trim();
-    filtraProdotti(categoria);
+    filtraProdotti(tabAttiva.getAttribute("data-categoria") || tabAttiva.textContent.trim());
 }
 
 async function toggleDettagli(bottone) {
@@ -175,10 +218,47 @@ async function toggleDettagli(bottone) {
     }
 
     try {
-        // Richiede l'HTML dei dettagli e lo inserisce subito dopo la riga ordine.
-        const risposta = await fetch(`/api/ordine/${idOrdine}/dettagli`);
+        const risposta = await fetch(`/api/ordini/${idOrdine}/dettagli`);
         if (!risposta.ok) throw new Error("Errore nel caricamento dei dettagli");
-        const html = await risposta.text();
+        const dati = await risposta.json();
+
+        const badgeClass = (stato) => ({
+            "In Attesa": "etichetta-in-attesa",
+            "In Preparazione": "etichetta-in-preparazione",
+            "Pronto": "etichetta-pronto",
+            "Completato": "etichetta-completato",
+        }[stato] || "etichetta-base");
+
+        const righeDettagli = dati.dettagli.map((p) => `
+          <tr>
+            <td>${escapaHtml(p.nome)}</td>
+            <td>${escapaHtml(p.categoria_menu)}</td>
+            <td>${p.quantita}</td>
+            <td>€${p.prezzo.toFixed(2)}</td>
+            <td>€${p.subtotale.toFixed(2)}</td>
+            <td><span class="etichetta-dettaglio ${badgeClass(p.stato)}">${escapaHtml(p.stato)}</span></td>
+          </tr>`).join("");
+
+        const html = `
+          <tr class="riga-dettagli" id="dettagli-${dati.ordine_id}">
+            <td colspan="10" class="cella-dettagli-ordine">
+              <div class="dettagli-ordine-contenitore">
+                <h4 class="dettagli-ordine-titolo">Prodotti dell'ordine:</h4>
+                <table class="dettagli-ordine-tabella">
+                  <thead class="dettagli-ordine-intestazione">
+                    <tr>
+                      <th>Prodotto</th><th>Categoria</th><th>Quantità</th>
+                      <th>Prezzo</th><th>Subtotale</th><th>Stato</th>
+                    </tr>
+                  </thead>
+                  <tbody>${righeDettagli}</tbody>
+                </table>
+                <div class="dettagli-ordine-totale">
+                  <span class="dettagli-ordine-totale-testo">Totale ordine: €${dati.totale.toFixed(2)}</span>
+                </div>
+              </div>
+            </td>
+          </tr>`;
         rigaOrdine.insertAdjacentHTML("afterend", html);
     } catch (errore) {
         // Ripristina il bottone e avvisa l'utente.

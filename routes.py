@@ -6,7 +6,6 @@ import bcrypt
 from flask import (
     Response,
     abort,
-    json,
     jsonify,
     redirect,
     render_template,
@@ -87,7 +86,7 @@ def home():
     return render_template("index.html", utente=utente)
 
 
-@app.route("/logout/")
+@app.route("/logout/", methods=["POST"])
 def logout():
     username = session.get("username", "sconosciuto")
     session.clear()
@@ -117,14 +116,10 @@ def cassa():
             prodotti_per_categoria[categoria] = []
         prodotti_per_categoria[categoria].append(prodotto)
 
-    # Permette al frontend di evidenziare l'ultimo ordine creato.
-    id_ultimo_ordine = request.args.get("id_ultimo_ordine")
-
     return render_template(
         "cassa.html",
         categorie=categorie,
         prodotti_per_categoria=prodotti_per_categoria,
-        id_ultimo_ordine=id_ultimo_ordine
     )
 
 
@@ -132,30 +127,18 @@ def cassa():
 @accesso_richiesto
 @richiedi_permesso("CASSA")
 def aggiungi_ordine():
-    # Converte i campi del form nel formato atteso dal DB.
-    asporto = request.form.get("isTakeaway") == "on"
-    nome_cliente = request.form.get("nome_cliente")
-    numero_tavolo = request.form.get("numero_tavolo")
-    numero_persone = request.form.get("numero_persone")
-    metodo_pagamento = request.form.get("metodo_pagamento")
-    prodotti_json = request.form.get("prodotti")
+    dati = request.get_json()
 
-    if asporto:
-        # Per asporto non si memorizzano tavolo e persone.
-        numero_tavolo = None
-        numero_persone = None
-
-    # Decodifica la lista prodotti dal payload JSON del frontend.
-    try:
-        prodotti = json.loads(prodotti_json) if prodotti_json else []
-    except json.JSONDecodeError:
-        # Se arriva JSON invalido, tratta come ordine vuoto.
-        prodotti = []
+    asporto = bool(dati.get("asporto"))
+    nome_cliente = dati.get("nome_cliente")
+    metodo_pagamento = dati.get("metodo_pagamento")
+    prodotti = dati.get("prodotti", [])
+    numero_tavolo = None if asporto else (dati.get("numero_tavolo") or None)
+    numero_persone = None if asporto else (dati.get("numero_persone") or None)
 
     if not prodotti:
-        # Evita la creazione di ordini senza righe.
         logger.warning("Tentativo di creare ordine senza prodotti - utente: '%s'", session.get("username"))
-        return redirect(url_for("cassa"), code=303)
+        return jsonify({"errore": "Nessun prodotto selezionato"}), 400
 
     try:
         # Inserisce l'ordine e le righe prodotto in un'unica transazione.
@@ -209,11 +192,11 @@ def aggiungi_ordine():
             emissione_sicura("aggiorna_dashboard", {"categoria": categoria}, stanza=categoria)
         socketio.start_background_task(ricalcola_statistiche)
 
-        return redirect(url_for("cassa") + f"?id_ultimo_ordine={id_ordine}", code=303)
+        return jsonify({"messaggio": "Ordine creato con successo"}), 201
 
     except Exception as errore:
         logger.error("Errore durante la creazione dell'ordine - utente: '%s': %s", session.get("username"), errore)
-        return redirect(url_for("cassa"), code=303)
+        return jsonify({"errore": str(errore)}), 500
 
 
 # ==================== Route: dashboard ====================
@@ -232,39 +215,36 @@ def dashboard(category):
     )
 
 
-@app.route("/dashboard/<category>/partial")
+@app.route("/api/dashboard/<category>")
 @accesso_richiesto
 @richiedi_permesso("DASHBOARD")
 def dashboard_parziale(category):
-    # Restituisce frammenti HTML per refresh parziale via AJAX.
     ordini_non_completati, ordini_completati = ottieni_ordini_per_categoria(category)
 
-    # Renderizza separatamente la lista "in corso" e la lista "completati".
-    html_non_completati = render_template(
-        "partials/_ordini.html",
-        ordini=ordini_non_completati,
-        category=category
-    )
-    html_completati = render_template(
-        "partials/_ordini.html",
-        ordini=ordini_completati,
-        category=category,
-        completati=True
-    )
+    def serializza(lista):
+        return [
+            {
+                "id": o["id"],
+                "nome_cliente": o["nome_cliente"],
+                "numero_tavolo": o["numero_tavolo"],
+                "numero_persone": o["numero_persone"],
+                "data_ordine": o["data_ordine"].strftime("%H:%M"),
+                "stato": o["stato"],
+                "prodotti": o["prodotti"],
+            }
+            for o in lista
+        ]
 
-    # Restituisce HTML pronto da inserire nel DOM via JS.
     return jsonify({
-        "html_non_completati": html_non_completati,
-        "html_completati": html_completati
+        "non_completati": serializza(ordini_non_completati),
+        "completati": serializza(ordini_completati),
     })
 
 
-@app.route("/api/ordini/<int:id_ordine>/stato", methods=["PATCH"])
+@app.route("/api/ordini/<int:id_ordine>/stato/<categoria>", methods=["PATCH"])
 @accesso_richiesto
 @richiedi_permesso("DASHBOARD")
-def cambia_stato(id_ordine):
-    dati = request.get_json()
-    categoria = dati.get("categoria")
+def cambia_stato(id_ordine, categoria):
 
     # Legge lo stato attuale per la categoria.
     riga_stato = esegui_query("""
@@ -408,7 +388,7 @@ def amministrazione():
     )
 
 
-@app.route("/api/statistiche/")
+@app.route("/api/statistiche")
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def api_statistiche():
@@ -416,7 +396,7 @@ def api_statistiche():
     return jsonify(costruisci_dati_statistiche())
 
 
-@app.route("/amministrazione/esporta_statistiche")
+@app.route("/api/statistiche/report")
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def esporta_statistiche():
@@ -642,7 +622,7 @@ def aggiungi_prodotto():
         # Aggiorna statistiche dopo modifica catalogo.
         socketio.start_background_task(ricalcola_statistiche)
 
-        return jsonify({"messaggio": "Prodotto aggiunto con successo"})
+        return jsonify({"messaggio": "Prodotto aggiunto con successo"}), 201
     except Exception as e:
         logger.error("Errore durante l'aggiunta del prodotto - utente: '%s': %s", session.get("username"), e)
         return jsonify({"errore": "Errore durante l'aggiunta"}), 500
@@ -691,7 +671,7 @@ def modifica_prodotto(id):
         return jsonify({"errore": "Errore durante la modifica"}), 500
 
 
-@app.route("/api/prodotti/<int:id>/quantita", methods=["PATCH"])
+@app.route("/api/prodotti/<int:id>", methods=["PATCH"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def rifornisci_prodotto(id):
@@ -855,36 +835,7 @@ def elimina_ordine(id_ordine):
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
-@app.route("/api/ordine/<int:id_ordine>/dettagli")
-@accesso_richiesto
-@richiedi_permesso("AMMINISTRAZIONE")
-def ordine_dettagli(id_ordine):
-    dettagli = esegui_query(
-        """
-        SELECT
-            p.nome,
-            p.categoria_menu,
-            op.quantita,
-            p.prezzo,
-            (p.prezzo * op.quantita) as subtotale,
-            op.stato
-        FROM ordini_prodotti op
-        JOIN prodotti p ON op.prodotto_id = p.id
-        WHERE op.ordine_id = %s
-        """,
-        (id_ordine,),
-    )
-
-    totale = sum((riga["subtotale"] or 0) for riga in dettagli)
-    return render_template(
-        "partials/_ordine_dettagli.html",
-        dettagli=dettagli,
-        totale=totale,
-        ordine_id=id_ordine,
-    )
-
-
-@app.route("/api/ordine/<int:id_ordine>")
+@app.route("/api/ordini/<int:id_ordine>", methods=["GET"])
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
 def api_ordine(id_ordine):
@@ -900,16 +851,18 @@ def api_ordine(id_ordine):
     if not intestazione:
         abort(404)
 
-    righe_articoli = esegui_query(
+    prodotti = esegui_query(
         """
-        SELECT p.nome AS nome, op.quantita AS quantita, p.prezzo AS prezzo
+        SELECT p.nome, p.categoria_menu, op.quantita, p.prezzo,
+               (p.prezzo * op.quantita) AS subtotale, op.stato
         FROM ordini_prodotti op
         JOIN prodotti p ON p.id = op.prodotto_id
         WHERE op.ordine_id = %s
+        ORDER BY p.categoria_menu, p.nome
         """,
         (id_ordine,),
     )
-    articoli = [{"nome": riga["nome"], "quantita": riga["quantita"], "prezzo": riga["prezzo"]} for riga in righe_articoli]
+    totale = sum((r["subtotale"] or 0) for r in prodotti)
     return jsonify(
         {
             "id": intestazione["id"],
@@ -918,7 +871,18 @@ def api_ordine(id_ordine):
             "numero_persone": intestazione["numero_persone"],
             "metodo_pagamento": intestazione["metodo_pagamento"],
             "data_ordine": intestazione["data_ordine"],
-            "items": articoli,
+            "totale": float(totale),
+            "prodotti": [
+                {
+                    "nome": r["nome"],
+                    "categoria_menu": r["categoria_menu"],
+                    "quantita": r["quantita"],
+                    "prezzo": float(r["prezzo"]),
+                    "subtotale": float(r["subtotale"] or 0),
+                    "stato": r["stato"],
+                }
+                for r in prodotti
+            ],
         }
     )
 
@@ -1079,14 +1043,12 @@ def elimina_utente(id):
         return jsonify({"errore": "Errore durante l'eliminazione"}), 500
 
 
-# ==================== API: frammenti HTML amministrazione ====================
+# ==================== API: dati amministrazione ====================
 
-@app.route("/api/amministrazione/ordini_html")
+@app.route("/api/amministrazione/ordini")
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def api_amministrazione_ordini_html():
-    # Ritorna le righe HTML della tabella ordini (refresh parziale).
-    # Query identica a quella della pagina admin, senza layout completo.
+def api_amministrazione_ordini():
     ordini = esegui_query("""
         SELECT o.id, o.nome_cliente, o.numero_tavolo, o.numero_persone, o.data_ordine, o.metodo_pagamento,
                COALESCE(SUM(p.prezzo * op.quantita), 0) as totale
@@ -1096,15 +1058,26 @@ def api_amministrazione_ordini_html():
         GROUP BY o.id
         ORDER BY o.data_ordine DESC
     """)
-    return render_template("partials/_amministrazione_ordini_rows.html", ordini=ordini)
+    return jsonify({
+        "ordini": [
+            {
+                "id": o["id"],
+                "nome_cliente": o["nome_cliente"],
+                "numero_tavolo": o["numero_tavolo"],
+                "numero_persone": o["numero_persone"],
+                "data_ordine": o["data_ordine"].strftime("%d/%m/%Y %H:%M"),
+                "metodo_pagamento": o["metodo_pagamento"],
+                "totale": float(o["totale"]),
+            }
+            for o in ordini
+        ]
+    })
 
 
-@app.route("/api/amministrazione/prodotti_html")
+@app.route("/api/amministrazione/prodotti")
 @accesso_richiesto
 @richiedi_permesso("AMMINISTRAZIONE")
-def api_amministrazione_prodotti_html():
-    # Ritorna le righe HTML della tabella prodotti (refresh parziale).
-    # Query identica a quella della pagina admin, ordinata per categoria.
+def api_amministrazione_prodotti():
     prodotti = esegui_query("""
         SELECT
             id,
@@ -1119,15 +1092,25 @@ def api_amministrazione_prodotti_html():
         ORDER BY MIN(id) OVER (PARTITION BY categoria_menu), id;
     """)
 
-    # Calcola la prima categoria per inizializzare il pannello UI.
     categorie_db = esegui_query("SELECT categoria_menu FROM prodotti GROUP BY categoria_menu ORDER BY MIN(id)")
     categorie = [riga["categoria_menu"] for riga in categorie_db]
     prima_categoria = categorie[0] if categorie else None
 
-    return render_template(
-        "partials/_amministrazione_prodotti_rows.html",
-        prodotti=prodotti,
-        prima_categoria=prima_categoria,
-    )
+    return jsonify({
+        "prima_categoria": prima_categoria,
+        "prodotti": [
+            {
+                "id": p["id"],
+                "nome": p["nome"],
+                "categoria_dashboard": p["categoria_dashboard"],
+                "categoria_menu": p["categoria_menu"],
+                "prezzo": float(p["prezzo"]),
+                "disponibile": bool(p["disponibile"]),
+                "quantita": p["quantita"],
+                "venduti": p["venduti"],
+            }
+            for p in prodotti
+        ],
+    })
 
 

@@ -210,6 +210,6 @@ def test_admin_statistiche_restituisce_json(cliente):
         sessione["username"] = "admin_stats"
         sessione["is_admin"] = True
 
-    risposta = cliente.get("/api/statistiche/")
+    risposta = cliente.get("/api/statistiche")
     assert risposta.status_code == 200
     assert risposta.json is not None

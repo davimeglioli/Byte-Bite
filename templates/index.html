@@ -20,7 +20,9 @@
         <h2>Seleziona area</h2>
       </div>
       {% if utente %}
-        <a href="{{ url_for('logout') }}" class="tasto-logout">Esci</a>
+        <form method="POST" action="{{ url_for('logout') }}" style="margin:0">
+          <button type="submit" class="tasto-logout">Esci</button>
+        </form>
       {% else %}
         <p></p>
       {% endif %}

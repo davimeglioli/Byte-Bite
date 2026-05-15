@@ -1,5 +1,48 @@
 // ==================== Dashboard ====================
-// Gestisce: socket realtime, cambio stato ordine e refresh parziale HTML.
+// Gestisce: socket realtime, cambio stato ordine e refresh parziale.
+
+function escapaHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function costruisciSchedeOrdini(ordini, completati) {
+    return ordini.map((o) => {
+        const tavolo = o.numero_tavolo !== null ? o.numero_tavolo : "ASPORTO";
+        const persone = o.numero_persone !== null ? o.numero_persone : "ASPORTO";
+        const classeDivisore = completati ? "divisore-ordine-completato" : "divisore-ordine";
+        const prodotti = o.prodotti.map((p) => `
+          <div class="riga-articolo-ordine">
+            <span>${escapaHtml(p.nome)}</span>
+            <span class="etichetta-quantita">x${p.quantita}</span>
+          </div>`).join("");
+        const bottone = completati ? "" : `
+          <div class="stato-ordine">
+            <button
+              class="tasto-azione-ordine"
+              data-status="${escapaHtml(o.stato)}"
+              data-id="${o.id}"
+              data-categoria="${escapaHtml(categoriaCorrente)}"
+              onclick="cambiaStato(this)"
+            >${escapaHtml(o.stato)}</button>
+          </div>`;
+        return `
+          <div class="scheda-ordine ${completati ? "completato" : ""}" data-status="${escapaHtml(o.stato)}" data-id="${o.id}">
+            <h2 class="titolo-ordine">${escapaHtml(o.nome_cliente)}</h2>
+            <div class="info-ordine">
+              <div>Tavolo: ${tavolo}</div>
+              <div>${o.data_ordine}</div>
+              <div>Persone: ${persone}</div>
+            </div>
+            <div class="${classeDivisore}"></div>
+            <div class="lista-articoli-ordine">${prodotti}</div>
+            ${bottone}
+          </div>`;
+    }).join("");
+}
 
 (function () {
     const el = document.getElementById('orologio-live');
@@ -112,20 +155,13 @@ function cambiaStato(bottone) {
 }
 
 function aggiornaDashboard() {
-    // Richiede HTML parziale per aggiornare liste "in corso" e "completati".
-    const categoria = categoriaCorrente;
-
-    fetch(`/dashboard/${categoria}/partial`)
+    fetch(`/api/dashboard/${categoriaCorrente}`)
         .then((res) => res.json())
         .then((dati) => {
             const griglie = document.querySelectorAll(".griglia-ordini");
             if (griglie.length < 2) return;
-
-            // Prima griglia: ordini non completati.
-            griglie[0].innerHTML = dati.html_non_completati;
-
-            // Seconda griglia: ordini completati.
-            griglie[1].innerHTML = dati.html_completati;
+            griglie[0].innerHTML = costruisciSchedeOrdini(dati.non_completati, false);
+            griglie[1].innerHTML = costruisciSchedeOrdini(dati.completati, true);
         })
         .catch((errore) => console.error("Errore aggiornamento:", errore));
 }

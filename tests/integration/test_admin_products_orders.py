@@ -107,7 +107,7 @@ def test_crud_ordini(cliente):
         cursore.execute("UPDATE prodotti SET quantita = 98 WHERE id = 300")
         connessione.commit()
 
-    risposta = cliente.get("/api/ordine/300/dettagli")
+    risposta = cliente.get("/api/ordini/300/dettagli")
     assert risposta.status_code == 200
     assert b"Pizza" in risposta.data
     assert b"2" in risposta.data
@@ -184,16 +184,16 @@ def test_api_extra_amministrazione(cliente):
         )
         connessione.commit()
 
-    risposta = cliente.get("/api/ordine/400")
+    risposta = cliente.get("/api/ordini/400")
     assert risposta.status_code == 200
     assert risposta.json["nome_cliente"] == "Extra Client"
     assert len(risposta.json["items"]) == 1
 
-    risposta = cliente.get("/api/amministrazione/ordini_html")
+    risposta = cliente.get("/api/amministrazione/ordini")
     assert risposta.status_code == 200
     assert b"Extra Client" in risposta.data
 
-    risposta = cliente.get("/api/amministrazione/prodotti_html")
+    risposta = cliente.get("/api/amministrazione/prodotti")
     assert risposta.status_code == 200
     assert b"Test Extra" in risposta.data
 

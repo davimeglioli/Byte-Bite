@@ -17,6 +17,6 @@ def test_controllo_accessi_senza_login(pagina, url_base):
     expect(pagina).to_have_url(f"{url_base}/login/")
 
     # Prova accesso a endpoint statistiche senza login.
-    risposta = pagina.request.get(f"{url_base}/api/statistiche/")
+    risposta = pagina.request.get(f"{url_base}/api/statistiche")
     # Deve finire su login (redirect seguito dalla request).
     assert "/login/" in risposta.url

@@ -207,7 +207,7 @@ class AzioniAutenticazione:
         )
 
     def esci(self):
-        return self._cliente.get("/logout/")
+        return self._cliente.post("/logout/")
 
 
 @pytest.fixture
