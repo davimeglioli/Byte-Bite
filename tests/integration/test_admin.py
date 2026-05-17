@@ -29,7 +29,7 @@ def test_admin_crea_utente(cliente):
         "ruolo": "staff",
         "permessi": ["CASSA", "CUCINA"],
     }
-    risposta = cliente.post("/api/utenti/", json=payload)
+    risposta = cliente.post("/api/utenti", json=payload)
     assert risposta.status_code == 201
 
     with ottieni_db() as connessione:

@@ -38,7 +38,7 @@ def test_invio_ordine_senza_prodotti_reindirizza_con_errore(cliente, monkeypatch
         "prodotti": [],
     }
 
-    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    risposta = cliente.post("/api/ordini", json=dati_ordine)
     assert risposta.status_code == 400
 
     with ottieni_db() as connessione:

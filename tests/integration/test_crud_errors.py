@@ -31,7 +31,7 @@ def test_aggiungi_utente_username_duplicato_restituisce_400(cliente):
         connessione.commit()
 
     risposta = cliente.post(
-        "/api/utenti/",
+        "/api/utenti",
         json={"username": "dup_user", "password": "pass", "is_admin": False, "attivo": True},
     )
     assert risposta.status_code == 400
@@ -41,7 +41,7 @@ def test_aggiungi_utente_username_duplicato_restituisce_400(cliente):
 def test_aggiungi_utente_senza_credenziali_restituisce_400(cliente):
     _imposta_admin(cliente)
     risposta = cliente.post(
-        "/api/utenti/",
+        "/api/utenti",
         json={"is_admin": False, "attivo": True},  # mancano username e password
     )
     assert risposta.status_code == 400
@@ -57,7 +57,7 @@ def test_elimina_utente_inesistente_restituisce_404(cliente):
 def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
     _imposta_admin(cliente)
     risposta = cliente.post(
-        "/api/prodotti/",
+        "/api/prodotti",
         json={"prezzo": 10, "quantita": 5},  # mancano nome e categorie
     )
     assert risposta.status_code == 400
@@ -65,8 +65,8 @@ def test_aggiungi_prodotto_campi_mancanti_restituisce_400(cliente):
 
 def test_rifornisci_prodotto_quantita_zero_restituisce_400(cliente):
     _imposta_admin(cliente)
-    risposta = cliente.patch(
-        "/api/prodotti/1",
+    risposta = cliente.post(
+        "/api/prodotti/1/rifornimento",
         json={"quantita": 0},  # quantita <= 0 non valida
     )
     assert risposta.status_code == 400

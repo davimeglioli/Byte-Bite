@@ -38,7 +38,7 @@ def test_crud_prodotti(cliente):
         "quantita": 10,
         "disponibile": True,
     }
-    risposta = cliente.post("/api/prodotti/", json=payload_aggiunta)
+    risposta = cliente.post("/api/prodotti", json=payload_aggiunta)
     assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
@@ -68,7 +68,7 @@ def test_crud_prodotti(cliente):
         assert prodotto["quantita"] == 5
 
     payload_rifornimento = {"quantita": 20}
-    risposta = cliente.patch(f"/api/prodotti/{id_prodotto}", json=payload_rifornimento)
+    risposta = cliente.post(f"/api/prodotti/{id_prodotto}/rifornimento", json=payload_rifornimento)
     assert risposta.status_code == 200
 
     with ottieni_db() as connessione:
@@ -77,7 +77,7 @@ def test_crud_prodotti(cliente):
         assert cursore.fetchone()["quantita"] == 25
 
     risposta = cliente.delete(f"/api/prodotti/{id_prodotto}")
-    assert risposta.status_code == 200
+    assert risposta.status_code == 204
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -131,7 +131,7 @@ def test_crud_ordini(cliente):
         assert ordine["metodo_pagamento"] == "Carta"
 
     risposta = cliente.delete("/api/ordini/300")
-    assert risposta.status_code == 200
+    assert risposta.status_code == 204
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -155,7 +155,7 @@ def test_elimina_utente(cliente):
         connessione.commit()
 
     risposta = cliente.delete(f"/api/utenti/{id_target}")
-    assert risposta.status_code == 200
+    assert risposta.status_code == 204
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -189,11 +189,11 @@ def test_api_extra_amministrazione(cliente):
     assert risposta.json["nome_cliente"] == "Extra Client"
     assert len(risposta.json["prodotti"]) == 1
 
-    risposta = cliente.get("/api/ordini/")
+    risposta = cliente.get("/api/ordini")
     assert risposta.status_code == 200
     assert b"Extra Client" in risposta.data
 
-    risposta = cliente.get("/api/prodotti/")
+    risposta = cliente.get("/api/prodotti")
     assert risposta.status_code == 200
     assert b"Test Extra" in risposta.data
 
@@ -201,7 +201,7 @@ def test_api_extra_amministrazione(cliente):
 def test_modifica_prodotto_quantita_zero_rende_non_disponibile(cliente):
     imposta_admin(cliente)
 
-    risposta = cliente.post("/api/prodotti/", json={
+    risposta = cliente.post("/api/prodotti", json={
         "nome": "Prodotto Esauribile",
         "categoria_dashboard": "Bar",
         "categoria_menu": "Bar",

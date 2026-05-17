@@ -41,7 +41,7 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         "metodo_pagamento": "Contanti",
         "prodotti": [{"id": 10, "quantita": 2, "nome": "Carbonara"}],
     }
-    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    risposta = cliente.post("/api/ordini", json=dati_ordine)
     assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
@@ -59,7 +59,7 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         )
         connessione.commit()
 
-    risposta = cliente.get("/api/dashboard/cucina")
+    risposta = cliente.get("/api/ordini/categoria/cucina")
     assert risposta.status_code == 200
     dati = risposta.get_json()
     nomi_clienti = [o["nome_cliente"] for o in dati["non_completati"]]
@@ -97,6 +97,6 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         )
         connessione.commit()
 
-    risposta = cliente.get("/api/dashboard/cucina")
+    risposta = cliente.get("/api/ordini/categoria/cucina")
     dati = risposta.get_json()
     assert "FlussoTest" not in [o["nome_cliente"] for o in dati["non_completati"]]

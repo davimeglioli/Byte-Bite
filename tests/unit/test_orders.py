@@ -48,7 +48,7 @@ def test_aggiungi_ordine_con_prodotti_aggiorna_magazzino(cliente, monkeypatch):
         "prodotti": [{"id": 1, "quantita": 2, "nome": "Pizza Margherita"}],
     }
 
-    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    risposta = cliente.post("/api/ordini", json=dati_ordine)
     assert risposta.status_code == 201
 
     with ottieni_db() as connessione:
@@ -93,7 +93,7 @@ def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
         "prodotti": [{"id": 2, "quantita": 2, "nome": "Pizza Speciale"}],
     }
 
-    risposta = cliente.post("/api/ordini/", json=dati_ordine)
+    risposta = cliente.post("/api/ordini", json=dati_ordine)
     assert risposta.status_code == 500
 
     with ottieni_db() as connessione:
@@ -136,7 +136,7 @@ def test_ordine_asporto_ignora_tavolo(cliente, monkeypatch):
         "prodotti": [{"id": 99, "quantita": 1, "nome": "Acqua"}],
     }
 
-    cliente.post("/api/ordini/", json=dati_ordine)
+    cliente.post("/api/ordini", json=dati_ordine)
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()

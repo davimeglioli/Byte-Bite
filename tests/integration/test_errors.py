@@ -30,7 +30,7 @@ def test_creazione_ordine_con_prodotto_inesistente_reindirizza_con_errore(client
         "metodo_pagamento": "Contanti",
     }
 
-    risposta = cliente.post("/api/ordini/", json=dati)
+    risposta = cliente.post("/api/ordini", json=dati)
     assert risposta.status_code == 500
 
 
@@ -65,9 +65,9 @@ def test_secondo_ordine_fallisce_se_prodotto_esaurito(cliente):
         "metodo_pagamento": "Contanti",
     }
 
-    risposta_1 = cliente.post("/api/ordini/", json=dati)
+    risposta_1 = cliente.post("/api/ordini", json=dati)
     assert risposta_1.status_code == 201
 
     dati["nome_cliente"] = "Cliente 2"
-    risposta_2 = cliente.post("/api/ordini/", json=dati)
+    risposta_2 = cliente.post("/api/ordini", json=dati)
     assert risposta_2.status_code == 500

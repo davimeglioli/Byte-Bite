@@ -238,7 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
             };
 
             try {
-                const risposta = await fetch("/api/ordini/", {
+                const risposta = await fetch("/api/ordini", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(dati),

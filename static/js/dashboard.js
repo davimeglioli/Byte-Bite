@@ -153,7 +153,7 @@ function cambiaStato(bottone) {
 }
 
 function aggiornaDashboard() {
-    fetch(`/api/dashboard/${categoriaCorrente}`)
+    fetch(`/api/ordini/categoria/${categoriaCorrente}`)
         .then((res) => res.json())
         .then((dati) => {
             const griglie = document.querySelectorAll(".griglia-ordini");
