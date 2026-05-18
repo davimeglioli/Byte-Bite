@@ -689,6 +689,7 @@ def aggiungi_prodotto():
                     nome, prezzo, categoria_menu, categoria_dashboard, quantita, session.get("username"))
 
         # Aggiorna statistiche dopo modifica catalogo.
+        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Prodotto aggiunto con successo"}), 201
@@ -728,6 +729,7 @@ def modifica_prodotto(id_prodotto):
         logger.info("Prodotto #%s modificato: '%s' (€%.2f, quantita: %s) - utente: '%s'",
                     id_prodotto, dati["nome"], prezzo, quantita, session.get("username"))
 
+        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Prodotto modificato con successo"})
@@ -765,6 +767,7 @@ def rifornisci_prodotto(id_prodotto):
 
     logger.info("Prodotto #%s rifornito di %s unità - utente: '%s'", id_prodotto, quantita, session.get("username"))
 
+    emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
     socketio.start_background_task(ricalcola_statistiche)
 
     return jsonify({"messaggio": "Prodotto rifornito con successo"})
@@ -779,6 +782,7 @@ def elimina_prodotto(id_prodotto):
 
         logger.info("Prodotto #%s eliminato - utente: '%s'", id_prodotto, session.get("username"))
 
+        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
         socketio.start_background_task(ricalcola_statistiche)
 
         return "", 204
@@ -824,6 +828,7 @@ def modifica_ordine(id_ordine):
                     id_ordine, nome_cliente, session.get("username"))
 
         # Aggiorna statistiche dopo modifica ordine.
+        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
         socketio.start_background_task(ricalcola_statistiche)
 
         return jsonify({"messaggio": "Ordine aggiornato con successo"})
@@ -886,6 +891,7 @@ def elimina_ordine(id_ordine):
                     id_ordine, session.get("username"))
 
         # Aggiorna statistiche dopo eliminazione.
+        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
         socketio.start_background_task(ricalcola_statistiche)
 
         return "", 204
