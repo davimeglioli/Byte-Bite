@@ -1,4 +1,5 @@
-from app import app, emissione_sicura, socketio
+from app import app, socketio
+from app.services import emissione_sicura
 
 # ==================== SocketIO ====================
 

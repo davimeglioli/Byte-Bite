@@ -1,6 +1,8 @@
 import os
+import sys
 import psycopg2
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from create_db import PRODOTTI_DEFAULT
 
 

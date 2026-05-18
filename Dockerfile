@@ -15,11 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia il resto dell'app
 COPY . .
 
-# Script di inizializzazione
-RUN chmod +x /app/create_db.py
-
 # Espone la porta
 EXPOSE 8000
 
 # Inizializza il database, poi avvia l'app
-CMD python create_db.py && python app.py
+CMD python scripts/create_db.py && python run.py

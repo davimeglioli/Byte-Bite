@@ -1,12 +1,7 @@
-from app import (
-    app,
-    emissione_sicura,
-    ottieni_db,
-    ottieni_utente_loggato,
-    ricalcola_statistiche,
-    socketio,
-)
-from services import costruisci_dati_statistiche
+from app import app, socketio
+from app.services import emissione_sicura, ricalcola_statistiche, costruisci_dati_statistiche
+from app.db import ottieni_db
+from app.auth import ottieni_utente_loggato
 
 # ==================== Copertura ====================
 

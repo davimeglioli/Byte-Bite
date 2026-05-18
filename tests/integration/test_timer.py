@@ -1,4 +1,6 @@
-from app import cambia_stato_automatico, ottieni_db, socketio, timer_attivi
+from app.services import cambia_stato_automatico
+from app.db import ottieni_db
+from app import socketio, timer_attivi
 
 # ==================== Timer ====================
 

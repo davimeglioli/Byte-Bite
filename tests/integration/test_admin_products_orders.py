@@ -1,4 +1,5 @@
-from app import ottieni_db, socketio
+from app.db import ottieni_db
+from app import socketio
 
 # ==================== Amministrazione (CRUD) ====================
 
@@ -231,7 +232,7 @@ def test_modifica_prodotto_quantita_zero_rende_non_disponibile(cliente):
 
 
 def test_ricalcola_statistiche_diretto(cliente):
-    from app import ricalcola_statistiche
+    from app.services import ricalcola_statistiche
 
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
@@ -260,7 +261,7 @@ def test_ricalcola_statistiche_diretto(cliente):
     finally:
         socketio.emit = original_emit
 
-    from services import costruisci_dati_statistiche
+    from app.services import costruisci_dati_statistiche
     stats = costruisci_dati_statistiche()
     assert stats["totali"]["ordini_totali"] >= 1
     assert stats["totali"]["totale_incasso"] >= 20

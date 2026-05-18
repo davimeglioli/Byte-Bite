@@ -1,5 +1,6 @@
-from app import ottieni_ordini_per_categoria, ottieni_db
-from routes import _normalizza_permessi
+from app.services import ottieni_ordini_per_categoria
+from app.db import ottieni_db
+from app.routes.utenti import _normalizza_permessi
 
 # ==================== Database ====================
 

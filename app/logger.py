@@ -1,8 +1,9 @@
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
-CARTELLA_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+CARTELLA_LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 
 
 def configura_logging(debug: bool = False) -> None:
@@ -35,7 +36,9 @@ def configura_logging(debug: bool = False) -> None:
     logger_root.setLevel(livello)
 
     if not logger_root.handlers:
-        logger_root.addHandler(handler_file)
+        in_test = "pytest" in sys.modules
+        if not in_test:
+            logger_root.addHandler(handler_file)
         logger_root.addHandler(handler_console)
 
     # Silenzia librerie esterne verbose

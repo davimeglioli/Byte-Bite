@@ -3,7 +3,7 @@ from functools import wraps
 
 from flask import abort, redirect, request, session, url_for
 
-from db import esegui_query
+from app.db import esegui_query
 
 logger = logging.getLogger(__name__)
 

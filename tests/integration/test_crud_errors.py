@@ -1,4 +1,4 @@
-from app import ottieni_db
+from app.db import ottieni_db
 
 # ==================== Gestione Errori (CRUD) ====================
 

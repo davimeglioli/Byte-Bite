@@ -18,7 +18,6 @@ if str(radice_progetto) not in sys.path:
 DB_TEST_NAME = "byte_bite_test"
 os.environ["DB_NAME"] = DB_TEST_NAME
 
-import app as modulo_app
 from app import app, socketio
 
 # ==================== E2E ====================
@@ -75,7 +74,7 @@ def inizializza_schema(crea_db_test):
     """Crea lo schema nel DB di test se non esiste ancora (idempotente)."""
     connessione = _connessione_test()
     try:
-        schema = (radice_progetto / "db.sql").read_text()
+        schema = (radice_progetto / "scripts" / "db.sql").read_text()
         with connessione.cursor() as cursore:
             for stmt in schema.split(";"):
                 stmt = "\n".join(
@@ -180,7 +179,7 @@ def cliente(monkeypatch):
     connessione.close()
 
     # Azzera la cache statistiche in memoria per evitare dati residui.
-    import services
+    import app.services as services
     services._statistiche_cache = None
 
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
@@ -213,7 +212,7 @@ class AzioniAutenticazione:
 @pytest.fixture
 def autenticazione(cliente):
     """Garantisce un utente admin (admin/password) nel DB di test."""
-    from app import ottieni_db
+    from app.db import ottieni_db
     with ottieni_db() as connessione:
         cursore = connessione.cursor()
         cursore.execute("SELECT 1 FROM utenti WHERE username = 'admin'")
