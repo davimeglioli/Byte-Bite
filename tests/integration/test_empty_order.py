@@ -26,7 +26,7 @@ def _imposta_cassa(cliente):
 
 def test_invio_ordine_senza_prodotti_reindirizza_con_errore(cliente, monkeypatch):
     _imposta_cassa(cliente)
-    monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.services.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     dati_ordine = {

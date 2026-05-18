@@ -36,7 +36,7 @@ def test_aggiungi_ordine_con_prodotti_aggiorna_magazzino(cliente, monkeypatch):
         )
         connessione.commit()
 
-    monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.services.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     dati_ordine = {
@@ -115,7 +115,7 @@ def test_aggiungi_ordine_fallisce_se_prodotto_esaurito(cliente):
 
 def test_ordine_asporto_ignora_tavolo(cliente, monkeypatch):
     _imposta_cassa(cliente)
-    monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.services.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     with ottieni_db() as connessione:

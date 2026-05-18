@@ -26,7 +26,7 @@ def test_flusso_completo_ordine(cliente, monkeypatch):
         )
         connessione.commit()
 
-    monkeypatch.setattr("app.emissione_sicura", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.services.emissione_sicura", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.socketio.start_background_task", lambda *args, **kwargs: None)
 
     with cliente.session_transaction() as sessione:
