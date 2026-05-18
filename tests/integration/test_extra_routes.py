@@ -49,6 +49,59 @@ def test_utente_disattivo_viene_reindirizzato_al_login(cliente, autenticazione):
     assert "/login/" in risposta.location
 
 
+def test_cassa_renderizza_prodotti_per_categoria(cliente):
+    with ottieni_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("cassa_render", "hash", False, True),
+        )
+        id_utente = cur.fetchone()["id"]
+        cur.execute(
+            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)",
+            (id_utente, "CASSA"),
+        )
+        cur.execute(
+            "INSERT INTO prodotti"
+            " (nome, prezzo, categoria_menu, categoria_dashboard, disponibile, quantita, venduti)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            ("Birra Artigianale", 3.0, "Da Bere", "Bar", True, 50, 0),
+        )
+        conn.commit()
+    with cliente.session_transaction() as sessione:
+        sessione["id_utente"] = id_utente
+        sessione["username"] = "cassa_render"
+
+    risposta = cliente.get("/cassa/")
+    assert risposta.status_code == 200
+    assert b"Birra Artigianale" in risposta.data
+    assert b"Da Bere" in risposta.data
+
+
+def test_dashboard_renderizza_categoria(cliente):
+    with ottieni_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO utenti (username, password_hash, is_admin, attivo)"
+            " VALUES (%s, %s, %s, %s) RETURNING id",
+            ("dashboard_user", "hash", False, True),
+        )
+        id_utente = cur.fetchone()["id"]
+        cur.execute(
+            "INSERT INTO permessi_pagine (utente_id, pagina) VALUES (%s, %s)",
+            (id_utente, "DASHBOARD"),
+        )
+        conn.commit()
+    with cliente.session_transaction() as sessione:
+        sessione["id_utente"] = id_utente
+        sessione["username"] = "dashboard_user"
+
+    risposta = cliente.get("/dashboard/bar/")
+    assert risposta.status_code == 200
+    assert b"Bar" in risposta.data
+
+
 def test_esporta_statistiche_scarica_pdf(cliente, autenticazione):
     autenticazione.accedi()
 

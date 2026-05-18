@@ -1,4 +1,5 @@
 from app import ottieni_ordini_per_categoria, ottieni_db
+from routes import _normalizza_permessi
 
 # ==================== Database ====================
 
@@ -43,3 +44,52 @@ def test_ordini_per_categoria_raggruppa(cliente):
     assert len(ordine["prodotti"]) == 1
     assert ordine["prodotti"][0]["nome"] == "Panino"
     assert ordine["prodotti"][0]["quantita"] == 2
+
+
+def test_ordini_per_categoria_separa_completati(cliente):
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (nome, prezzo, categoria_menu, categoria_dashboard, quantita, venduti)"
+            " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            ("Tagliatelle", 9.0, "Primi", "Cucina", 100, 0),
+        )
+        id_prodotto = cursore.fetchone()["id"]
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (nome_cliente, numero_tavolo, numero_persone, metodo_pagamento, asporto)"
+            " VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            ("Alice", 3, 1, "Carta", False),
+        )
+        id_ordine = cursore.fetchone()["id"]
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (%s, %s, %s, %s)",
+            (id_ordine, id_prodotto, 1, "Completato"),
+        )
+        connessione.commit()
+
+    non_completati, completati = ottieni_ordini_per_categoria("Cucina")
+    assert len(completati) == 1
+    assert len(non_completati) == 0
+    assert completati[0]["nome_cliente"] == "Alice"
+
+
+def test_normalizza_permessi_deduplica():
+    risultato = _normalizza_permessi(["CASSA", "CASSA", "DASHBOARD"])
+    assert risultato == ["CASSA", "DASHBOARD"]
+
+
+def test_normalizza_permessi_input_non_lista_restituisce_vuoto():
+    assert _normalizza_permessi("CASSA") == []
+    assert _normalizza_permessi(None) == []
+    assert _normalizza_permessi(42) == []
+
+
+def test_normalizza_permessi_rimuove_vuoti_e_spazi():
+    risultato = _normalizza_permessi(["  CASSA  ", "", "DASHBOARD"])
+    assert "CASSA" in risultato
+    assert "DASHBOARD" in risultato
+    assert "" not in risultato
+    assert len(risultato) == 2
