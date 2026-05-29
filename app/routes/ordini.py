@@ -9,6 +9,19 @@ from app.services import carica_ordini, notifica_e_ricalcola
 
 logger = logging.getLogger(__name__)
 
+def _categorie_dashboard_per_ordine(id_ordine):
+    righe = esegui_query(
+        """
+        SELECT DISTINCT p.categoria_dashboard
+        FROM ordini_prodotti op
+        JOIN prodotti p ON p.id = op.prodotto_id
+        WHERE op.ordine_id = %s
+        """,
+        (id_ordine,),
+    )
+    return [r["categoria_dashboard"] for r in righe] if righe else []
+
+
 
 @app.route("/api/ordini", methods=["GET"])
 @accesso_richiesto
@@ -105,7 +118,11 @@ def modifica_ordine(id_ordine):
             "Ordine #%s aggiornato - cliente: '%s', utente: '%s'",
             id_ordine, nome_cliente, session.get("username"),
         )
-        notifica_e_ricalcola()
+        categorie_dashboard = _categorie_dashboard_per_ordine(id_ordine)
+        if categorie_dashboard:
+            notifica_e_ricalcola(*categorie_dashboard)
+        else:
+            notifica_e_ricalcola()
         return jsonify({"messaggio": "Ordine aggiornato con successo"})
 
     except Exception as e:
@@ -121,8 +138,20 @@ def modifica_ordine(id_ordine):
 @richiedi_permesso("AMMINISTRAZIONE")
 def elimina_ordine(id_ordine):
     try:
+        categorie_dashboard = []
         with ottieni_db() as connessione:
             cursore = connessione.cursor()
+
+            cursore.execute(
+                """
+                SELECT DISTINCT p.categoria_dashboard
+                FROM ordini_prodotti op
+                JOIN prodotti p ON p.id = op.prodotto_id
+                WHERE op.ordine_id = %s
+                """,
+                (id_ordine,),
+            )
+            categorie_dashboard = [r["categoria_dashboard"] for r in cursore.fetchall()]
 
             cursore.execute(
                 "SELECT prodotto_id, quantita FROM ordini_prodotti WHERE ordine_id = %s",
@@ -150,7 +179,10 @@ def elimina_ordine(id_ordine):
             "Ordine #%s eliminato con ripristino magazzino - utente: '%s'",
             id_ordine, session.get("username"),
         )
-        notifica_e_ricalcola()
+        if categorie_dashboard:
+            notifica_e_ricalcola(*categorie_dashboard)
+        else:
+            notifica_e_ricalcola()
         return "", 204
 
     except Exception as e:

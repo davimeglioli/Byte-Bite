@@ -1,5 +1,5 @@
 from app.db import ottieni_db
-from app import socketio
+from app import app, socketio
 
 # ==================== Amministrazione (CRUD) ====================
 
@@ -140,6 +140,84 @@ def test_crud_ordini(cliente):
         assert cursore.fetchone() is None
         cursore.execute("SELECT quantita FROM prodotti WHERE id = 300")
         assert cursore.fetchone()["quantita"] == 100
+
+
+def test_modifica_ordine_notifica_dashboard_categoria(cliente):
+    imposta_admin(cliente)
+
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard)"
+            " VALUES (310, 'Bibita', 3, 10, 0, 'Bar', 'Bar')"
+        )
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento)"
+            " VALUES (310, 'Cliente', 1, CURRENT_TIMESTAMP, FALSE, FALSE, 'Contanti')"
+        )
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (310, 310, 1, 'In Attesa')"
+        )
+        connessione.commit()
+
+    client_socket = socketio.test_client(app, flask_test_client=cliente)
+    client_socket.emit("join", {"categoria": "Bar"})
+    client_socket.get_received()
+
+    risposta = cliente.put("/api/ordini/310", json={
+        "id_ordine": 310,
+        "nome_cliente": "Cliente Mod",
+        "numero_tavolo": 2,
+        "numero_persone": 2,
+        "metodo_pagamento": "Carta",
+    })
+    assert risposta.status_code == 200
+
+    ricevuti = client_socket.get_received()
+    assert any(
+        e["name"] == "aggiorna_dashboard" and e["args"] and e["args"][0].get("categoria") == "Bar"
+        for e in ricevuti
+    )
+    client_socket.disconnect()
+
+
+def test_elimina_ordine_notifica_dashboard_categoria(cliente):
+    imposta_admin(cliente)
+
+    with ottieni_db() as connessione:
+        cursore = connessione.cursor()
+        cursore.execute(
+            "INSERT INTO prodotti"
+            " (id, nome, prezzo, quantita, venduti, categoria_menu, categoria_dashboard)"
+            " VALUES (320, 'Toast', 5, 10, 0, 'Bar', 'Bar')"
+        )
+        cursore.execute(
+            "INSERT INTO ordini"
+            " (id, nome_cliente, numero_tavolo, data_ordine, completato, asporto, metodo_pagamento)"
+            " VALUES (320, 'Cliente', 1, CURRENT_TIMESTAMP, FALSE, FALSE, 'Contanti')"
+        )
+        cursore.execute(
+            "INSERT INTO ordini_prodotti (ordine_id, prodotto_id, quantita, stato)"
+            " VALUES (320, 320, 1, 'In Attesa')"
+        )
+        connessione.commit()
+
+    client_socket = socketio.test_client(app, flask_test_client=cliente)
+    client_socket.emit("join", {"categoria": "Bar"})
+    client_socket.get_received()
+
+    risposta = cliente.delete("/api/ordini/320")
+    assert risposta.status_code == 204
+
+    ricevuti = client_socket.get_received()
+    assert any(
+        e["name"] == "aggiorna_dashboard" and e["args"] and e["args"][0].get("categoria") == "Bar"
+        for e in ricevuti
+    )
+    client_socket.disconnect()
 
 
 def test_elimina_utente(cliente):
