@@ -15,11 +15,11 @@ _statistiche_lock = threading.RLock()
 _TIMEOUT_AUTO_COMPLETAMENTO_SEC = 10
 
 
-def emissione_sicura(evento, dati, stanza=None):
+def emissione_sicura(evento, dati, stanza=None, namespace=None):
     try:
-        socketio.emit(evento, dati, room=stanza)
+        socketio.emit(evento, dati, room=stanza, namespace=namespace)
     except Exception as e:
-        logger.error("Errore durante l'emissione dell'evento SocketIO '%s' (stanza: %s): %s", evento, stanza, e)
+        logger.error("Errore durante l'emissione dell'evento SocketIO '%s' (stanza: %s, ns: %s): %s", evento, stanza, namespace, e)
 
 
 def _serializza_ordini_dashboard(lista):
@@ -70,7 +70,7 @@ def _costruisci_payload_admin():
 
 
 def notifica_e_ricalcola(*categorie):
-    """Emette aggiorna_dashboard con i dati per ogni categoria e aggiorna_admin per il pannello admin.
+    """Emette aggiorna_dashboard con payload completo per ogni categoria e aggiorna_admin per il pannello admin.
 
     Senza argomenti notifica solo la stanza 'amministrazione'.
     Con una o più categorie notifica ciascuna stanza di categoria, poi 'amministrazione' una sola volta.
@@ -83,18 +83,43 @@ def notifica_e_ricalcola(*categorie):
                 "non_completati": _serializza_ordini_dashboard(non_completati),
                 "completati": _serializza_ordini_dashboard(completati),
             }
-            emissione_sicura("aggiorna_dashboard", payload_cat, stanza=cat)
+            emissione_sicura("aggiorna_dashboard", payload_cat, stanza=cat, namespace="/dashboard")
 
-    emissione_sicura("aggiorna_admin", _costruisci_payload_admin(), stanza="amministrazione")
+    emissione_sicura("aggiorna_admin", _costruisci_payload_admin(), stanza="amministrazione", namespace="/admin")
     socketio.start_background_task(ricalcola_statistiche)
 
 
-@socketio.on("join")
-def gestisci_join(dati):
+def notifica_delta_stato(ordine_id, nuovo_stato, *categorie):
+    """Emette solo il delta di stato verso le stanze dashboard interessate.
+
+    Usato per cambi di stato ordine: invia solo ordine_id + nuovo_stato invece del
+    payload completo, evitando il ricalcolo e la trasmissione di tutti gli ordini.
+    L'aggiornamento statistiche admin avviene comunque in background.
+    """
+    for cat in categorie:
+        emissione_sicura(
+            "aggiorna_dashboard_delta",
+            {"ordine_id": ordine_id, "nuovo_stato": nuovo_stato, "categoria": cat},
+            stanza=cat,
+            namespace="/dashboard",
+        )
+    socketio.start_background_task(ricalcola_statistiche)
+
+
+@socketio.on("join", namespace="/dashboard")
+def gestisci_join_dashboard(dati):
     categoria = dati.get("categoria")
     if categoria:
         join_room(categoria)
-        logger.debug("Client iscritto alla stanza '%s'", categoria)
+        logger.debug("Client dashboard iscritto alla stanza '%s'", categoria)
+
+
+@socketio.on("join", namespace="/admin")
+def gestisci_join_admin(dati):
+    categoria = dati.get("categoria")
+    if categoria:
+        join_room(categoria)
+        logger.debug("Client admin iscritto alla stanza '%s'", categoria)
 
 
 def ottieni_ordini_per_categoria(categoria):
@@ -272,7 +297,7 @@ def ricalcola_statistiche(notifica=True):
         nuovi_dati["totali"]["totale_incasso"],
     )
     if notifica:
-        emissione_sicura("aggiorna_statistiche", nuovi_dati, stanza="amministrazione")
+        emissione_sicura("aggiorna_statistiche", nuovi_dati, stanza="amministrazione", namespace="/admin")
 
 
 def cambia_stato_automatico(ordine_id, categoria, id_timer):
@@ -325,7 +350,7 @@ def cambia_stato_automatico(ordine_id, categoria, id_timer):
 
     timer_attivi.pop(chiave_timer, None)
     # Run stats update in background to avoid delaying the realtime UI update.
-    notifica_e_ricalcola(categoria)
+    notifica_delta_stato(ordine_id, "Completato", categoria)
 
 
 def costruisci_dati_statistiche():

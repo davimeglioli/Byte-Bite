@@ -163,9 +163,9 @@ def test_modifica_ordine_notifica_dashboard_categoria(cliente):
         )
         connessione.commit()
 
-    client_socket = socketio.test_client(app, flask_test_client=cliente)
-    client_socket.emit("join", {"categoria": "Bar"})
-    client_socket.get_received()
+    client_socket = socketio.test_client(app, namespace="/dashboard", flask_test_client=cliente)
+    client_socket.emit("join", {"categoria": "Bar"}, namespace="/dashboard")
+    client_socket.get_received(namespace="/dashboard")
 
     risposta = cliente.put("/api/ordini/310", json={
         "id_ordine": 310,
@@ -176,12 +176,12 @@ def test_modifica_ordine_notifica_dashboard_categoria(cliente):
     })
     assert risposta.status_code == 200
 
-    ricevuti = client_socket.get_received()
+    ricevuti = client_socket.get_received(namespace="/dashboard")
     assert any(
         e["name"] == "aggiorna_dashboard" and e["args"] and e["args"][0].get("categoria") == "Bar"
         for e in ricevuti
     )
-    client_socket.disconnect()
+    client_socket.disconnect(namespace="/dashboard")
 
 
 def test_elimina_ordine_notifica_dashboard_categoria(cliente):
@@ -205,19 +205,19 @@ def test_elimina_ordine_notifica_dashboard_categoria(cliente):
         )
         connessione.commit()
 
-    client_socket = socketio.test_client(app, flask_test_client=cliente)
-    client_socket.emit("join", {"categoria": "Bar"})
-    client_socket.get_received()
+    client_socket = socketio.test_client(app, namespace="/dashboard", flask_test_client=cliente)
+    client_socket.emit("join", {"categoria": "Bar"}, namespace="/dashboard")
+    client_socket.get_received(namespace="/dashboard")
 
     risposta = cliente.delete("/api/ordini/320")
     assert risposta.status_code == 204
 
-    ricevuti = client_socket.get_received()
+    ricevuti = client_socket.get_received(namespace="/dashboard")
     assert any(
         e["name"] == "aggiorna_dashboard" and e["args"] and e["args"][0].get("categoria") == "Bar"
         for e in ricevuti
     )
-    client_socket.disconnect()
+    client_socket.disconnect(namespace="/dashboard")
 
 
 def test_elimina_utente(cliente):

@@ -50,7 +50,7 @@ function costruisciSchedeOrdini(ordini, completati) {
     setInterval(aggiorna, 1000);
 })();
 
-const socket = io({ transports: ["websocket"], upgrade: false });
+const socket = io("/dashboard", { transports: ["websocket"], upgrade: false });
 
 const categoriaCorrente = document
     .querySelector("h2")
@@ -63,6 +63,12 @@ socket.emit("join", { categoria: categoriaCorrente });
 socket.on("aggiorna_dashboard", (dati) => {
     if (dati.categoria === categoriaCorrente) {
         aggiornaDashboard(dati);
+    }
+});
+
+socket.on("aggiorna_dashboard_delta", (dati) => {
+    if (dati.categoria === categoriaCorrente) {
+        aggiornaDashboardDelta(dati.ordine_id, dati.nuovo_stato);
     }
 });
 
@@ -129,4 +135,29 @@ function aggiornaDashboard(dati) {
     if (griglie.length < 2) return;
     griglie[0].innerHTML = costruisciSchedeOrdini(dati.non_completati, false);
     griglie[1].innerHTML = costruisciSchedeOrdini(dati.completati, true);
+}
+
+function aggiornaDashboardDelta(ordineId, nuovoStato) {
+    const scheda = document.querySelector(`.scheda-ordine[data-id="${ordineId}"]`);
+    if (!scheda) return;
+
+    scheda.dataset.status = nuovoStato;
+    const bottone = scheda.querySelector(".tasto-azione-ordine");
+    if (bottone) {
+        bottone.dataset.status = nuovoStato;
+        bottone.textContent = nuovoStato;
+    }
+
+    if (nuovoStato === "Completato") {
+        const griglie = document.querySelectorAll(".griglia-ordini");
+        if (griglie.length < 2 || scheda.closest(".griglia-ordini") === griglie[1]) return;
+
+        scheda.querySelector(".stato-ordine")?.remove();
+        scheda.classList.add("completato");
+        const divisore = scheda.querySelector(".divisore-ordine");
+        if (divisore) divisore.className = "divisore-ordine-completato";
+        scheda.style.opacity = "";
+        scheda.style.pointerEvents = "";
+        griglie[1].prepend(scheda);
+    }
 }

@@ -6,7 +6,7 @@ from flask import jsonify, render_template
 from app.auth import accesso_richiesto, richiedi_permesso
 from app import app, socketio, timer_attivi
 from app.db import esegui_query
-from app.services import cambia_stato_automatico, notifica_e_ricalcola, ottieni_ordini_per_categoria
+from app.services import cambia_stato_automatico, notifica_delta_stato, notifica_e_ricalcola, ottieni_ordini_per_categoria
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def cambia_stato(id_ordine, categoria):
         commit=True,
     )
 
-    notifica_e_ricalcola(categoria)
+    notifica_delta_stato(id_ordine, nuovo_stato, categoria)
 
     if nuovo_stato == "Pronto":
         # Cancel any existing timer for this order+category before starting a new one.

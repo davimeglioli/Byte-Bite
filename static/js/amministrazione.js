@@ -823,7 +823,7 @@ async function avviaDati() {
     iscrivitiStanze(statistiche.categorie);
 
     if (typeof io !== "undefined") {
-        socket = io();
+        socket = io("/admin", { transports: ["websocket"], upgrade: false });
         socket.on("connect", () => {
             iscrivitiStanze(statistiche.categorie);
         });
