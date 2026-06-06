@@ -30,7 +30,6 @@ let grafici = {
 
 let socket = null;
 let stanzeIscritte = new Set();
-let aggiornamentoPianificato = false;
 
 // ==================== Statistiche e grafici ====================
 async function caricaStatistiche() {
@@ -120,10 +119,8 @@ function iscrivitiStanze(_categorie) {
 }
 
 // ==================== Tabelle e filtri ====================
-async function aggiornaTabellaOrdini() {
-    const risposta = await fetch("/api/ordini");
-    const dati = await risposta.json();
-    const righe = dati.ordini.map((o) => `
+function renderizzaTabellaOrdini(ordini) {
+    const righe = ordini.map((o) => `
       <tr class="riga-ordine" data-id="${o.id}">
         <td>${o.id}</td>
         <td>${escapaHtml(o.nome_cliente)}</td>
@@ -145,6 +142,12 @@ async function aggiornaTabellaOrdini() {
     document.querySelector(".tabella-dati tbody").innerHTML = righe;
 }
 
+async function aggiornaTabellaOrdini() {
+    const risposta = await fetch("/api/ordini");
+    const dati = await risposta.json();
+    renderizzaTabellaOrdini(dati.ordini);
+}
+
 function filtraProdotti(categoria) {
     const righe = document.querySelectorAll(".tabella-dati tbody tr[data-categoria]");
     righe.forEach((riga) => {
@@ -153,10 +156,8 @@ function filtraProdotti(categoria) {
     });
 }
 
-async function aggiornaTabellaProdotti() {
-    const risposta = await fetch("/api/prodotti");
-    const dati = await risposta.json();
-    const righe = dati.prodotti.map((p) => `
+function renderizzaTabellaProdotti(prodotti) {
+    const righe = prodotti.map((p) => `
       <tr data-categoria="${escapaHtml(p.categoria_menu)}">
         <td>${p.id}</td>
         <td>${escapaHtml(p.nome)}</td>
@@ -180,6 +181,12 @@ async function aggiornaTabellaProdotti() {
     const tabAttiva = document.querySelector(".contenitore-menu .linguetta.attiva");
     if (!tabAttiva) return;
     filtraProdotti(tabAttiva.getAttribute("data-categoria") || tabAttiva.textContent.trim());
+}
+
+async function aggiornaTabellaProdotti() {
+    const risposta = await fetch("/api/prodotti");
+    const dati = await risposta.json();
+    renderizzaTabellaProdotti(dati.prodotti);
 }
 
 async function toggleDettagli(bottone) {
@@ -261,14 +268,6 @@ async function aggiornaTutto() {
     aggiornaTabellaProdotti();
 }
 
-function pianificaAggiornamento() {
-    if (aggiornamentoPianificato) return;
-    aggiornamentoPianificato = true;
-    setTimeout(async () => {
-        await aggiornaTutto();
-        aggiornamentoPianificato = false;
-    }, 300);
-}
 
 document.addEventListener("DOMContentLoaded", () => {
     // ==================== Filtri prodotti (linguette categorie) ====================
@@ -828,8 +827,12 @@ async function avviaDati() {
         socket.on("connect", () => {
             iscrivitiStanze(statistiche.categorie);
         });
-        socket.on("aggiorna_dashboard", () => {
-            pianificaAggiornamento();
+        socket.on("aggiorna_admin", async (dati) => {
+            renderizzaTabellaOrdini(dati.ordini);
+            renderizzaTabellaProdotti(dati.prodotti);
+            const statistiche = await caricaStatistiche();
+            aggiornaRecap(statistiche.totali);
+            aggiornaGrafici(statistiche);
         });
     }
 }

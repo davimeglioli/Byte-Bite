@@ -62,7 +62,7 @@ socket.emit("join", { categoria: categoriaCorrente });
 
 socket.on("aggiorna_dashboard", (dati) => {
     if (dati.categoria === categoriaCorrente) {
-        aggiornaDashboard();
+        aggiornaDashboard(dati);
     }
 });
 
@@ -124,14 +124,9 @@ function cambiaStato(bottone) {
         });
 }
 
-function aggiornaDashboard() {
-    fetch(`/api/ordini/categoria/${categoriaCorrente}`)
-        .then((res) => res.json())
-        .then((dati) => {
-            const griglie = document.querySelectorAll(".griglia-ordini");
-            if (griglie.length < 2) return;
-            griglie[0].innerHTML = costruisciSchedeOrdini(dati.non_completati, false);
-            griglie[1].innerHTML = costruisciSchedeOrdini(dati.completati, true);
-        })
-        .catch((errore) => console.error("Errore aggiornamento:", errore));
+function aggiornaDashboard(dati) {
+    const griglie = document.querySelectorAll(".griglia-ordini");
+    if (griglie.length < 2) return;
+    griglie[0].innerHTML = costruisciSchedeOrdini(dati.non_completati, false);
+    griglie[1].innerHTML = costruisciSchedeOrdini(dati.completati, true);
 }

@@ -18,24 +18,74 @@ _TIMEOUT_AUTO_COMPLETAMENTO_SEC = 10
 def emissione_sicura(evento, dati, stanza=None):
     try:
         socketio.emit(evento, dati, room=stanza)
-        if stanza and stanza != "amministrazione" and evento == "aggiorna_dashboard":
-            # Replica to the amministrazione room so the admin panel stays in sync.
-            socketio.emit(evento, dati, room="amministrazione")
     except Exception as e:
         logger.error("Errore durante l'emissione dell'evento SocketIO '%s' (stanza: %s): %s", evento, stanza, e)
 
 
-def notifica_e_ricalcola(*categorie):
-    """Emette aggiorna_dashboard e avvia il ricalcolo statistiche in background.
+def _serializza_ordini_dashboard(lista):
+    return [
+        {
+            "id": o["id"],
+            "nome_cliente": o["nome_cliente"],
+            "numero_tavolo": o["numero_tavolo"],
+            "numero_persone": o["numero_persone"],
+            "data_ordine": o["data_ordine"].strftime("%H:%M"),
+            "stato": o["stato"],
+            "prodotti": o["prodotti"],
+        }
+        for o in lista
+    ]
 
-    Senza argomenti notifica la stanza 'amministrazione'.
-    Con una o più categorie notifica ciascuna stanza di categoria.
+
+def _costruisci_payload_admin():
+    ordini = carica_ordini()
+    prodotti, _, _ = carica_prodotti()
+    return {
+        "ordini": [
+            {
+                "id": o["id"],
+                "nome_cliente": o["nome_cliente"],
+                "numero_tavolo": o["numero_tavolo"],
+                "numero_persone": o["numero_persone"],
+                "data_ordine": o["data_ordine"].strftime("%d/%m/%Y %H:%M"),
+                "metodo_pagamento": o["metodo_pagamento"],
+                "totale": float(o["totale"]),
+            }
+            for o in ordini
+        ],
+        "prodotti": [
+            {
+                "id": p["id"],
+                "nome": p["nome"],
+                "categoria_dashboard": p["categoria_dashboard"],
+                "categoria_menu": p["categoria_menu"],
+                "prezzo": float(p["prezzo"]),
+                "disponibile": bool(p["disponibile"]),
+                "quantita": p["quantita"],
+                "venduti": p["venduti"],
+            }
+            for p in prodotti
+        ],
+    }
+
+
+def notifica_e_ricalcola(*categorie):
+    """Emette aggiorna_dashboard con i dati per ogni categoria e aggiorna_admin per il pannello admin.
+
+    Senza argomenti notifica solo la stanza 'amministrazione'.
+    Con una o più categorie notifica ciascuna stanza di categoria, poi 'amministrazione' una sola volta.
     """
     if categorie:
         for cat in categorie:
-            emissione_sicura("aggiorna_dashboard", {"categoria": cat}, stanza=cat)
-    else:
-        emissione_sicura("aggiorna_dashboard", {}, stanza="amministrazione")
+            non_completati, completati = ottieni_ordini_per_categoria(cat)
+            payload_cat = {
+                "categoria": cat,
+                "non_completati": _serializza_ordini_dashboard(non_completati),
+                "completati": _serializza_ordini_dashboard(completati),
+            }
+            emissione_sicura("aggiorna_dashboard", payload_cat, stanza=cat)
+
+    emissione_sicura("aggiorna_admin", _costruisci_payload_admin(), stanza="amministrazione")
     socketio.start_background_task(ricalcola_statistiche)
 
 
