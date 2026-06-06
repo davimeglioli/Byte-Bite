@@ -66,7 +66,7 @@ def ottieni_ordini_per_categoria(categoria):
         JOIN ordini_prodotti AS op ON o.id = op.ordine_id
         JOIN prodotti AS p ON p.id = op.prodotto_id
         WHERE p.categoria_dashboard = %s
-        ORDER BY o.data_ordine ASC
+        ORDER BY o.data_ordine ASC, op.id ASC
         """,
         (categoria,),
     )
