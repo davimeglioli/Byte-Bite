@@ -272,7 +272,7 @@ def ricalcola_statistiche(notifica=True):
         nuovi_dati["totali"]["totale_incasso"],
     )
     if notifica:
-        emissione_sicura("aggiorna_dashboard", {})
+        emissione_sicura("aggiorna_statistiche", nuovi_dati, stanza="amministrazione")
 
 
 def cambia_stato_automatico(ordine_id, categoria, id_timer):

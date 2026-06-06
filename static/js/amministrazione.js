@@ -827,10 +827,11 @@ async function avviaDati() {
         socket.on("connect", () => {
             iscrivitiStanze(statistiche.categorie);
         });
-        socket.on("aggiorna_admin", async (dati) => {
+        socket.on("aggiorna_admin", (dati) => {
             renderizzaTabellaOrdini(dati.ordini);
             renderizzaTabellaProdotti(dati.prodotti);
-            const statistiche = await caricaStatistiche();
+        });
+        socket.on("aggiorna_statistiche", (statistiche) => {
             aggiornaRecap(statistiche.totali);
             aggiornaGrafici(statistiche);
         });
