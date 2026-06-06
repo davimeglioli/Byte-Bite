@@ -1,42 +1,58 @@
 import contextlib
 import logging
 import os
+import threading
+
 import psycopg2
+import psycopg2.extensions
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
+_pool: psycopg2.pool.ThreadedConnectionPool | None = None
+_pool_lock = threading.Lock()
+
+
+def _parametri_connessione() -> dict:
+    return dict(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "byte_bite"),
+        user=os.getenv("DB_USER", "byte_bite_user"),
+        password=os.getenv("DB_PASSWORD", "secure_password_change_me"),
+        connect_timeout=30,
+        options="-c TimeZone=Europe/Rome",
+    )
+
+
+def _ottieni_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = psycopg2.pool.ThreadedConnectionPool(2, 10, **_parametri_connessione())
+                logger.info("Pool di connessioni DB inizializzato (min=2, max=10)")
+    return _pool
+
 
 @contextlib.contextmanager
 def ottieni_db():
-    """Stabilisce una connessione al database PostgreSQL e la chiude automaticamente."""
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("DB_NAME", "byte_bite")
-    db_user = os.getenv("DB_USER", "byte_bite_user")
-    db_password = os.getenv("DB_PASSWORD", "secure_password_change_me")
-
-    try:
-        connessione = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            connect_timeout=30
-        )
-    except psycopg2.Error as e:
-        logger.error("Impossibile connettersi al database (host: %s:%s, db: %s): %s", db_host, db_port, db_name, e)
-        raise
-
+    """Fornisce una connessione dal pool e la restituisce al termine."""
+    pool = _ottieni_pool()
+    connessione = pool.getconn()
     connessione.cursor_factory = RealDictCursor
     try:
-        with connessione.cursor() as cur:
-            cur.execute("SET TIME ZONE 'Europe/Rome'")
-        connessione.commit()
         yield connessione
     finally:
-        connessione.close()
+        if connessione.closed:
+            pool.putconn(connessione, close=True)
+        else:
+            try:
+                if connessione.status != psycopg2.extensions.STATUS_READY:
+                    connessione.rollback()
+            finally:
+                pool.putconn(connessione)
 
 
 def esegui_query(query, argomenti=(), uno=False, commit=False):
@@ -44,7 +60,6 @@ def esegui_query(query, argomenti=(), uno=False, commit=False):
     try:
         with ottieni_db() as connessione:
             cursore = connessione.cursor()
-            # Parametri bindati: prevengono SQL injection e gestiscono i tipi correttamente.
             cursore.execute(query, argomenti)
             if commit:
                 connessione.commit()
